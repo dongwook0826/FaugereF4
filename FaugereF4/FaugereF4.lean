@@ -154,6 +154,14 @@ termination_by sps.last_mon -- b'_lt_lmon
 decreasing_by
   -- exact b'_lt_lmon
   sorry
+/-
+done_mons의 원소가 모두 mon_H \ done_mons의 원소보다 크다
+b'는 mon_H \ done_mons에서 뽑아낸 최대원소
+lmon은? 바로 앞단계 iter의 mon_H \ done_mons에서 뽑아낸 최대원소
+lmon을 나누는 f가 G 안에...
+있었다 => H에 f*~(s.t. lmon이 max mon)을 더함 (=> mon_H 단조증가)
+없었다 => H 그대로 유지
+-/
 
 noncomputable def symbolic_preprocess {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K]
   (mo : MonomialOrder σ)

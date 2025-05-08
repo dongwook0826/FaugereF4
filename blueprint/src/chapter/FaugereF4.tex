@@ -1,9 +1,11 @@
 \chapter{Faug{\`e}re F4 Algorithm}
 
+\begin{latexonly}
 \begin{definition}[Symbolic preprocessing]
     Input: \(L\), \(G = \sset{f_1, \cdots, f_t}\)
-    (two finite sets of polynomials) \\
-    Output: \(H\) (a finite set of polynomial containing \(L\)) \\
+    (two finite sets of polynomials)
+
+    Output: \(H\) (a finite set of polynomial containing \(L\))
 
     \begin{itemize}
         \item \(H := L\)
@@ -11,7 +13,7 @@
         \item while \(done \ne \monset(H)\):
         \begin{itemize}
             \item \(x^\beta := \max_{<} (\monset(H) \setm done)\)
-            \item \(\done := \done \cup \sset{x^\beta}\)
+            \item \(done := done \cup \sset{x^\beta}\)
             \item if \(\exists g \in G\) such that \(\leadmon(g) | x^\beta\):
                 \begin{itemize}
                     \item \(g :=\) one such choice of \(g\)
@@ -21,6 +23,32 @@
         return \(H\)
     \end{itemize}
 \end{definition}
+\end{latexonly}
+
+\begin{htmlonly}
+    \paragraph{Symbolic preprocessing}
+
+    Input: $L$, $G = \sset{f_1, \cdots, f_t}$
+    (two finite sets of polynomials)
+
+    Output: $H$ (a finite set of polynomial containing $L$)
+
+    \begin{itemize}
+        \item $H := L$
+        \item $done := \leadmon(H)$
+        \item while $done \ne \monset(H)$:
+        \begin{itemize}
+            \item $x^\beta := \max_{<} (\monset(H) \setm done)$
+            \item $done := done \cup \sset{x^\beta}$
+            \item if $\exists g \in G$ such that $\leadmon(g) | x^\beta$:
+                \begin{itemize}
+                    \item $g :=$ one such choice of $g$
+                    \item $H := H \cup \set{\frac{x^\beta}{\leadmon(g)} g}$
+                \end{itemize}
+        \end{itemize}
+        return $H$
+    \end{itemize}
+\end{htmlonly}
 
 \begin{theorem}[Result of symbolic preprocessing]
     The algorithm above with input \(L\) and \(G\) terminates and obtains as an
