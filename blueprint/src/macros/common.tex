@@ -1,6 +1,8 @@
 % In this file you should put all LaTeX macros and settings to be used both by
 % the pdf version and the web version.
 % This should be most of your macros.
+\usepackage{algpseudocode}
+\usepackage{enumitem}
 
 % The theorem-like environments defined below are those that appear by default
 % in the dependency graph. See the README of leanblueprint if you need help to
@@ -16,3 +18,36 @@
 
 \theoremstyle{definition}
 \newtheorem{definition}[theorem]{Definition}
+
+%-------------------------------------------------------------------------------
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\eps}{\epsilon}
+\newcommand{\veps}{\varepsilon}
+\newcommand{\vphi}{\varphi}
+\newcommand{\bsl}{\backslash}
+\newcommand{\setm}{\setminus}
+\newcommand{\floor}[1]{\left\lfloor #1 \right\rfloor}
+\newcommand{\ceil}[1]{\left\lceil #1 \right\rceil}
+\newcommand{\norm}[1]{\left\| #1 \right\|}
+\newcommand{\snorm}[1]{\| #1 \|}
+\newcommand{\abs}[1]{\left| #1 \right|}
+\newcommand{\sabs}[1]{| #1 |}
+\newcommand{\set}[1]{\left\{ #1 \right\}}
+\newcommand{\sset}[1]{\{ #1 \}}
+\newcommand{\inp}[1]{\left< #1 \right>}
+\newcommand{\sinp}[1]{\langle #1 \rangle}
+\newcommand{\gen}[1]{\left< #1 \right>}
+\newcommand{\sgen}[1]{\langle #1 \rangle}
+\newcommand{\br}[1]{\left[ #1 \right]}
+\newcommand{\p}[1]{\left( #1 \right)}
+
+\newcommand{\idealle}{\trianglelefteq}
+
+\newcommand{\leadmon}{\mathrm{LM}}
+\newcommand{\leadcoeff}{\mathrm{LC}}
+\newcommand{\leadterm}{\mathrm{LT}}
+\newcommand{\monset}{\mathrm{Mon}}
