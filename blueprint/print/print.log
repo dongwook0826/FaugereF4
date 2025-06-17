@@ -1,4 +1,4 @@
-This is XeTeX, Version 3.141592653-2.6-0.999993 (TeX Live 2021/W32TeX) (preloaded format=xelatex 2022.1.26)  9 MAY 2025 08:48
+This is XeTeX, Version 3.141592653-2.6-0.999993 (TeX Live 2021/W32TeX) (preloaded format=xelatex 2022.1.26)  23 MAY 2025 14:31
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -403,9 +403,11 @@ Package: enumitem 2019/06/20 v3.9 Customized lists
 \enit@count@id=\count315
 \enitdp@description=\count316
 )
-\c@theorem=\count317
+(c:/texlive/2021/texmf-dist/tex/latex/was/gensymb.sty
+Package: gensymb 2003/07/02 v1.0 (WaS)
 )
-(./macros/print.tex)
+\c@theorem=\count317
+) (./macros/print.tex)
 (C:/Users/MooSSang/vscode_workspace/lean_workspace/FaugereF4/blueprint/print/pr
 int.aux)
 \openout1 = `print.aux'.
@@ -722,6 +724,18 @@ LaTeX Font Info:    Encoding `OMX' has changed to `TU' for symbol font
 LaTeX Font Info:    Overwriting symbol font `largesymbols' in version `bold'
 (Font)                  OMX/cmex/m/n --> TU/latinmodern-math.otf(3)/b/n on inpu
 t line 30.
+LaTeX Info: Redefining \celsius on input line 30.
+Package gensymb Info: Faking symbols for \degree and \celsius on input line 30.
+
+
+
+Package gensymb Warning: Not defining \perthousand.
+
+LaTeX Info: Redefining \ohm on input line 30.
+Package gensymb Info: Using \upOmega for \ohm on input line 30.
+
+Package gensymb Warning: Not defining \micro.
+
 LaTeX Font Info:    Font shape `TU/latinmodern-math.otf(2)/m/n' will be
 (Font)              scaled to size 12.00128pt on input line 32.
 LaTeX Font Info:    Font shape `TU/latinmodern-math.otf(2)/m/n' will be
@@ -736,7 +750,7 @@ LaTeX Font Info:    Font shape `TU/latinmodern-math.otf(3)/m/n' will be
 (Font)              scaled to size 5.99936pt on input line 32.
 LaTeX Font Info:    Trying to load font information for U+msa on input line 32.
 
- (c:/texlive/2021/texmf-dist/tex/latex/amsfonts/umsa.fd
+(c:/texlive/2021/texmf-dist/tex/latex/amsfonts/umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
 LaTeX Font Info:    Trying to load font information for U+msb on input line 32.
@@ -762,38 +776,52 @@ LaTeX Font Info:    Font shape `TU/latinmodern-math.otf(3)/m/n' will be
 
 (./chapter/GroebnerBasis.tex [1]
 Chapter 1.
-Missing character: There is no ⧵ (U+29F5) in font [latinmodern-math.otf]/OT:scr
-ipt=math;language=dflt;!
-Missing character: There is no ⧵ (U+29F5) in font [latinmodern-math.otf]/OT:scr
-ipt=math;language=dflt;!
-Missing character: There is no ⧵ (U+29F5) in font [latinmodern-math.otf]/OT:scr
-ipt=math;language=dflt;!
-Missing character: There is no ⧵ (U+29F5) in font [latinmodern-math.otf]/OT:scr
-ipt=math;language=dflt;!
-) (./chapter/FaugereF4.tex [2
+) (./chapter/BuchbergerCrit.tex [2
 
 ]
 Chapter 2.
-Missing character: There is no ⧵ (U+29F5) in font [latinmodern-math.otf]/OT:scr
-ipt=math;language=dflt;!
-Missing character: There is no ⧵ (U+29F5) in font [latinmodern-math.otf]/OT:scr
-ipt=math;language=dflt;!
+
+Underfull \hbox (badness 10000) in paragraph at lines 5--7
+
+ []
+
 [3
 
-])) [4]
+]
+Overfull \hbox (7.44936pt too wide) in paragraph at lines 67--70
+[][]\TU/lmr/bx/n/10 Definition 10 \TU/lmr/m/n/10 (Standard representation)\TU/l
+mr/bx/n/10 . [][]\TU/lmr/m/n/10 For $[] [] [][][][] [] [] [][][] [] [][][][][] 
+[] [] [][][]$ and $[] [] [][][][][] [] [] [][][]$,
+ []
+
+) (./chapter/FaugereF4.tex [4]
+Chapter 3.
+
+Underfull \hbox (badness 10000) in paragraph at lines 6--7
+
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 75--77
+
+ []
+
+[5
+
+])) [6]
 (C:/Users/MooSSang/vscode_workspace/lean_workspace/FaugereF4/blueprint/print/pr
 int.aux)
 Package rerunfilecheck Info: File `print.out' has not changed.
-(rerunfilecheck)             Checksum: 64D2C0F71228C654532BFDE50F9CFEEA;266.
+(rerunfilecheck)             Checksum: B794A538AC20AA253431475F76A8C562;432.
  ) 
 Here is how much of TeX's memory you used:
- 17468 strings out of 476191
- 322490 string characters out of 5813342
- 808915 words of memory out of 5000000
- 37977 multiletter control sequences out of 15000+600000
+ 17546 strings out of 476191
+ 323997 string characters out of 5813342
+ 810915 words of memory out of 5000000
+ 38048 multiletter control sequences out of 15000+600000
  474622 words of font info for 76 fonts, out of 8000000 for 9000
  1348 hyphenation exceptions out of 8191
- 86i,6n,115p,332b,625s stack positions out of 5000i,500n,10000p,200000b,80000s
+ 86i,6n,115p,332b,694s stack positions out of 5000i,500n,10000p,200000b,80000s
 
 Output written on C:/Users/MooSSang/vscode_workspace/lean_workspace/FaugereF4/b
-lueprint/print/print.pdf (5 pages).
+lueprint/print/print.pdf (7 pages).

@@ -1,5 +1,5 @@
 import Mathlib
-import FaugereF4.GroebnerBasis
+import FaugereF4.MonomialIdeal
 
 /-!
 # Faugere F4 algorithm
@@ -23,33 +23,47 @@ instance {σ : Type*} (mo : MonomialOrder σ) : WellFoundedRelation (WithTop mo.
 
 /-- The struct to iterate through symbolic preprocessing. -/
 structure SymbProcStruct
-  (σ : Type*) (K : Type*) (mo : MonomialOrder σ)
-  [Finite σ] [DecidableEq σ] [Field K] where
-  H : Finset (MvPolynomial σ K)
+  (σ : Type*) (K : Type*)
+  [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (G : Finset (MvPolynomial σ K)) where
+  H : Finset (MvPolynomial σ K) -- inceasing set of poly's
   done_mons : Finset (σ →₀ ℕ) -- the set of monomials considered until then
-  done_sub_H : done_mons ⊆ monomial_set H
-  last_mon : WithTop mo.syn
-  h_last_mon (not_top : last_mon ≠ ⊤) :
+  done_sub_H : done_mons ⊆ monomial_set H -- done_mons is contained in Mon(H) in each step
+  last_mon : WithTop mo.syn -- recently considered monomial
+  lmon_done (not_top : last_mon ≠ ⊤) : -- last_mon must be in done_mons
     mo.toSyn.invFun (last_mon.get (by
       cases last_mon with
       | top => simp_all
       | coe lmon => simp_all; rfl
     )) ∈ done_mons
+  nd_lt_lmon (ndm : σ →₀ ℕ) : -- any "not-done" monomial is less than last_mon
+    ndm ∈ monomial_set H \ done_mons → mo.toSyn ndm < last_mon
+  div_then_cont_mult : -- property (2) below
+    ∀ m ∈ done_mons,
+      (¬∃ g ∈ G, leading_monomial mo g ≤ m) ∨
+      (∃ g ∈ G, ∃ α : σ →₀ ℕ, m = leading_monomial mo g + α)
+  /-
+  What to be shown of the result of symbolic preprocessing:
+  (1) H is nondecreasing in each step
+  (2) If a monomial m ∈ monomial_set H is divisible by lm(g), for some g ∈ G of
+  current (initial, or possibly extended) basis set, then H itself has
+  n * g (∃ monomial n) where lm(n * g) = m.
+  Since the recursion continues while done_mons ⊊ Mon(H), it suffices to check
+  in each step that (2) holds for monomials in done_mons.
+  -/
 
-/-- Symbolic preprocessing subroutine in F4. This returns a finite superset `H'`
-of a given `H : Finset (MvPolynomial σ K)`, which satisfies the following:
-for any `m ∈ monomial_set H` which has some `f ∈ H` whose leading monomial
-divides `m`, this `H` has the monomial multiple of `f` whose leading monomial is
-adjusted to be `m`. -/
-noncomputable def symbolic_preprocess_rec {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K]
+noncomputable def symbolic_preprocess_rec {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ)
   (G : Finset (MvPolynomial σ K))
-  (sps : SymbProcStruct σ K mo) :=
+  (hG : 0 ∉ G)
+  (sps : SymbProcStruct σ K mo G)
+  -- (hmons : sps.done_mons ≠ monomial_set sps.H)
+  : SymbProcStruct σ K mo G :=
   let mon_H := monomial_set sps.H
   if hmons : sps.done_mons = mon_H
     then -- no more monomials to be considered
       sps
-    else
+    else -- one or more monomials are left to be considered
       have monset_nonempty : (Finset.map mo.toSyn.toEmbedding (mon_H \ sps.done_mons)).Nonempty := by
         have : sps.done_mons ⊂ mon_H := by
           apply ssubset_iff_subset_ne.mpr
@@ -59,10 +73,11 @@ noncomputable def symbolic_preprocess_rec {σ : Type*} {K : Type*} [Finite σ] [
           simp
           exact not_subset_of_ssubset this
         exact Finset.map_nonempty.mpr this
-      let b' := @Finset.max' _ mo.lo (Finset.map mo.toSyn (mon_H \ sps.done_mons)) monset_nonempty -- done_sub_H is needed for this
-      let b := mo.toSyn.invFun b'
-      let done_mons := {b} ∪ sps.done_mons
-      have b_mem_mon_H : b ∈ mon_H := by
+      -- ...then the max mon can be taken; this requires done_sub_H
+      let b' := @Finset.max' _ mo.lo (Finset.map mo.toSyn (mon_H \ sps.done_mons)) monset_nonempty
+      let b := mo.toSyn.invFun b' -- actual monomial type
+      let done_mons := {b} ∪ sps.done_mons -- include b into done
+      have b_mem_mon_H : b ∈ mon_H := by -- this b is taken from a subset of mon_H, hence is a member of mon_H
         unfold b
         simp
         have : ∃ b'' ∈ mon_H, mo.toSyn b'' = b' := by
@@ -77,7 +92,7 @@ noncomputable def symbolic_preprocess_rec {σ : Type*} {K : Type*} [Finite σ] [
             have : Finset.map mo.toSyn.toEmbedding (mon_H \ sps.done_mons)
               ⊆ Finset.map mo.toSyn.toEmbedding mon_H := by simp_all
             apply this
-            exact Finset.max'_mem _ _
+            exact Finset.max'_mem _ _ -- (Finset.map mo.toSyn.toEmbedding (mon_H \ sps.done_mons)) monset_nonempty
           · unfold b
             simp_all
         let ⟨b'', mem_b'', syn_b''⟩ := this
@@ -100,82 +115,360 @@ noncomputable def symbolic_preprocess_rec {σ : Type*} {K : Type*} [Finite σ] [
         | inr hcH =>
           apply sps.done_sub_H
           exact hcH
-      let SubG := {f ∈ G | f ≠ 0 ∧ leading_monomial mo f ≤ b}
-      have b'_notin_last_done : mo.toSyn.invFun b' ∉ sps.done_mons := by
+      let SubG := {f ∈ G | leading_monomial mo f ≤ b}
+      have b_notin_last_done : b ∉ sps.done_mons := by
+        unfold b
+        have : b' ∈ Finset.map mo.toSyn.toEmbedding (mon_H \ sps.done_mons) := by
+          unfold b'
+          exact Finset.max'_mem _ _
+        simp_all
+      have b_in_done : b ∈ done_mons := by
+        unfold done_mons
+        simp
+      /-
+      have nd_lt_d (ndm dm) : ndm ∈ mon_H \ sps.done_mons → dm ∈ sps.done_mons → mo.toSyn ndm < mo.toSyn dm := by
+        intro hndm hdm
         sorry
-      have b'_mem_done : mo.toSyn.invFun b' ∈ done_mons := by
-        sorry
+      -/
+      have nd_lt_b (ndm : σ →₀ ℕ) : -- proof of nd_lt_lmon
+        ndm ∈ mon_H \ done_mons → (mo.toSyn ndm) < b' := by
+        have lem_1 : mon_H \ done_mons = (mon_H \ sps.done_mons).erase b := by
+          simp_all only [ne_eq, Equiv.invFun_as_coe, AddEquiv.toEquiv_eq_coe,
+            AddEquiv.coe_toEquiv_symm, Finset.mem_union, Finset.mem_singleton,
+            or_false, b, mon_H, b', done_mons]
+          ext a
+          simp_all only [Finset.mem_sdiff, Finset.mem_union, Finset.mem_singleton,
+            not_or, Finset.mem_erase, ne_eq, b, mon_H, b']
+          constructor
+          · intro a_1
+            simp_all only [not_false_eq_true, and_self, b, mon_H, b']
+          · intro a_1
+            simp_all only [not_false_eq_true, and_self, b, mon_H, b']
+        have lem_2 : Finset.map mo.toSyn.toEmbedding (mon_H \ done_mons)
+          = (Finset.map mo.toSyn.toEmbedding (mon_H \ sps.done_mons)).erase b' := by
+          have : Finset.map mo.toSyn.toEmbedding (mon_H \ done_mons)
+            = (Finset.map mo.toSyn.toEmbedding ((mon_H \ sps.done_mons).erase b)) := by
+            simp_all
+          have : (Finset.map mo.toSyn.toEmbedding ((mon_H \ sps.done_mons).erase b))
+            = (Finset.map mo.toSyn.toEmbedding (mon_H \ sps.done_mons)).erase b' := by
+            unfold b'
+            simp_all only [ne_eq, Equiv.invFun_as_coe, AddEquiv.toEquiv_eq_coe, AddEquiv.coe_toEquiv_symm,
+              Finset.mem_union, Finset.mem_singleton, or_false, Finset.map_erase,
+              Equiv.coe_toEmbedding, EquivLike.coe_coe, AddEquiv.apply_symm_apply,
+              b, mon_H, done_mons, b']
+          simp_all
+        intro ndm_mem
+        have lem_3 : mo.toSyn ndm ∈ (Finset.map mo.toSyn.toEmbedding (mon_H \ sps.done_mons)).erase b' := by
+          rw [← lem_2]
+          have : mo.toSyn ndm = mo.toSyn.toEmbedding ndm := by simp
+          rw [this]
+          simp only [Finset.mem_map', ndm_mem]
+        unfold b'
+        unfold b' at lem_3
+        exact Finset.lt_max'_of_mem_erase_max'
+          (Finset.map mo.toSyn.toEmbedding (mon_H \ sps.done_mons))
+          monset_nonempty
+          lem_3
       have b'_lt_lmon : b' < sps.last_mon := by -- termination proof
-        induction sps.last_mon
-        case top =>
-          apply WithTop.coe_lt_top _
-        case coe lmon =>
-          apply WithTop.coe_lt_coe.mpr
-          sorry
-      symbolic_preprocess_rec mo G (
-        if h_div_able : SubG ≠ ∅
-          then
-            have : SubG.Nonempty := by
-              rw [Finset.nonempty_iff_ne_empty]
-              exact h_div_able
-            let f := this.choose -- noncomputable from here
-            let hf' := this.choose_spec
-            have hf : f ≠ 0 ∧ leading_monomial mo f ≤ b := by
-              have : f ∈ SubG := by
-                unfold f
-                exact hf'
-              unfold SubG at this
-              simp_all
-            -- let ⟨f, hf⟩ := @Finset.Nonempty.exists_mem _ SubG this -- goal이 Prop이 아니면 이렇게 쓸 수 없다
-            let H := {f * MvPolynomial.monomial (b - leading_monomial' mo f hf.1) 1} ∪ sps.H
-            {
-              H := H
-              done_mons := done_mons
-              done_sub_H := by
-                have : monomial_set sps.H ⊆ monomial_set H := by
+        by_cases init_or_step : sps.last_mon = ⊤
+        · rw [init_or_step]
+          exact WithTop.coe_lt_top b'
+        · have b_mem : b ∈ mon_H \ sps.done_mons := by simp_all
+          unfold mon_H at b_mem
+          have concl : ↑(mo.toSyn b) < sps.last_mon := sps.nd_lt_lmon b b_mem
+          have : mo.toSyn b = b' := by
+            unfold b
+            simp
+          rw [this] at concl
+          trivial
+          /-
+          b는 mon_H \ sps.done_mons의 원소
+          sps.last_mon은 (mo.toSyn.invFun을 먹이면) sps.done_mons의 원소
+          sps.nd_lt_lmon에 의하면 b' < sps.last_mon
+          nd_lt_lmon (ndm : σ →₀ ℕ) : -- any "not-done" monomial is less than last_mon
+            ndm ∈ monomial_set H \ done_mons → mo.toSyn ndm < last_mon
+          -/
+      if h_div_able : SubG ≠ ∅
+        then
+          have SubG_occ : SubG.Nonempty := by
+            rw [Finset.nonempty_iff_ne_empty]
+            exact h_div_able
+          let f := SubG_occ.choose -- noncomputable from here
+          let hf' := SubG_occ.choose_spec
+          have f_mem_SubG : f ∈ SubG := by
+            unfold f
+            exact hf'
+          have f_mem_G : f ∈ G := by -- aesop
+            simp_all only [ne_eq, Equiv.invFun_as_coe,
+              AddEquiv.toEquiv_eq_coe, AddEquiv.coe_toEquiv_symm,
+              Finset.mem_union, Finset.mem_singleton, or_false, Finset.mem_sdiff,
+              not_or, and_imp, Finset.mem_filter, mon_H, done_mons, b, b', SubG, f]
+          have f_not_0 : f ≠ 0 := by
+            simp_all [mon_H, SubG, done_mons, b, f, b']
+            apply Aesop.BuiltinRules.not_intro
+            intro a
+            simp_all only [mon_H, SubG, done_mons, b, f, b']
+          /-
+          have hf : f ≠ 0 ∧ leading_monomial mo f ≤ b := by
+            constructor
+            · simp_all [mon_H, SubG, done_mons, b, f, b']
+              apply Aesop.BuiltinRules.not_intro
+              intro a
+              simp_all only [mon_H, SubG, done_mons, b, f, b']
+            · unfold SubG at SubG_occ
+              simp_all only [ne_eq, Equiv.invFun_as_coe, AddEquiv.toEquiv_eq_coe, AddEquiv.coe_toEquiv_symm,
+                Finset.mem_union, Finset.mem_singleton, or_false, Finset.mem_sdiff, not_or, and_imp, Finset.mem_filter,
+                mon_H, SubG, done_mons, b, f, b']
+          -/
+          -- let ⟨f, hf⟩ := @Finset.Nonempty.exists_mem _ SubG SubG_occ -- goal이 Prop이 아니면 이렇게 쓸 수 없다
+          let lmf := leading_monomial' mo f f_not_0
+          -- let lcf := f.coeff lmf
+          have lmf_div_b : lmf ≤ b := by
+            unfold lmf
+            unfold SubG at SubG_occ
+            have : leading_monomial mo f ≤ b := by
+              simp_all only [Equiv.invFun_as_coe, AddEquiv.toEquiv_eq_coe, AddEquiv.coe_toEquiv_symm, Finset.mem_union,
+                Finset.mem_singleton, or_false, Finset.mem_sdiff, not_or, and_imp, ne_eq, Finset.mem_filter, b', f, b,
+                mon_H, SubG, done_mons]
+            -- unfold leading_monomial'
+            apply nonzero_lm'_div_impl_lm_div
+            exact this
+          /-
+          have lcf_not_0 : lcf ≠ 0 := by
+            unfold lcf
+            rw [← MvPolynomial.mem_support_iff]
+            unfold lmf
+            apply lm_mem_supp
+            -/
+          let mulf := f * MvPolynomial.monomial (b - lmf) (1 : K) -- (1 / lcf) -- adjusting leading coeff to 1 ... or not
+          have lm_mulf : leading_monomial' mo mulf (by
+              simp_all [SubG, b', f, b, mon_H, done_mons, lmf, /-lcf,-/ mulf]
+            ) = b := by
+            unfold mulf
+            rw [lm'_monmul_commute]
+            rw [add_comm]
+            apply monomial_sub_add
+            · exact lmf_div_b
+            · simp
+              -- exact lcf_not_0
+          let H := {mulf} ∪ sps.H
+          symbolic_preprocess_rec mo G hG {
+            H := H
+            done_mons := done_mons
+            done_sub_H := by
+              have : monomial_set sps.H ⊆ monomial_set H := by
+                unfold monomial_set
+                have : sps.H ⊆ H := by unfold H; simp
+                exact Finset.biUnion_subset_biUnion_of_subset_left _ this
+              unfold mon_H at done_sub_H
+              exact subset_trans done_sub_H this
+            last_mon := ↑b'
+            lmon_done := by -- autogenerated by aesop
+              intro not_top
+              simp_all only [ne_eq, Equiv.invFun_as_coe, AddEquiv.toEquiv_eq_coe, AddEquiv.coe_toEquiv_symm,
+                Finset.mem_union, Finset.mem_singleton, or_false, Finset.mem_sdiff, not_or, and_imp,
+                EmbeddingLike.apply_eq_iff_eq, mon_H, SubG, done_mons, b, f, b']
+              -- obtain ⟨left, right⟩ := hf
+              apply Or.inl
+              rfl
+            nd_lt_lmon := by
+              unfold mon_H at nd_lt_b
+              simp
+              simp at nd_lt_b
+              intro ndm ndm_mem_mon_H
+              have mon_H_union : monomial_set H = monomial_set {mulf} ∪ monomial_set sps.H := by
+                unfold H
+                exact union_monset_commute {mulf} sps.H
+              have ndm_mem_cases : ndm ∈ monomial_set {mulf} ∨ ndm ∈ monomial_set sps.H := by
+                rw [mon_H_union] at ndm_mem_mon_H
+                exact Finset.mem_union.mp ndm_mem_mon_H
+              cases ndm_mem_cases with
+              | inl ndm_mem_mulf =>
+                rw [singleton_monset_eq_support] at ndm_mem_mulf
+                -- unfold mulf at ndm_mem_mulf
+                -- rw [monomial_set_mul_monomial] at ndm_mem_mulf
+                intro ndm_not_done
+                have ndm_ne_b : ndm ≠ b := (ne_of_mem_of_not_mem b_in_done ndm_not_done).symm
+                have syn_ndm_ne_b : mo.toSyn ndm ≠ b' := by
+                  unfold b at ndm_ne_b
+                  have : mo.toSyn ndm ≠ mo.toSyn (mo.toSyn.invFun b') := by
+                    by_contra nconc
+                    rw [AddEquiv.apply_eq_iff_eq] at nconc
+                    exact ndm_ne_b nconc
+                  simp at this
+                  exact this
+                have syn_ndm_le_b : mo.toSyn ndm ≤ b' := by
+                  unfold leading_monomial' at lm_mulf
+                  unfold max_monomial' at lm_mulf
+                  unfold b at lm_mulf
+                  rw [← AddEquiv.apply_eq_iff_eq mo.toSyn] at lm_mulf
+                  simp at lm_mulf
+                  rw [← lm_mulf]
+                  apply Finset.le_max'
+                  simp_all
+                -- simp at ndm_mem_mulf
+                -- aesop?
+                exact lt_iff_le_and_ne.mpr ⟨syn_ndm_le_b, syn_ndm_ne_b⟩
+              | inr ndm_mem_prev_mon_H =>
+                exact nd_lt_b ndm ndm_mem_prev_mon_H
+              -- case 1: ndm ∈ monomial_set sps.H
+              ---- direct by nd_lt_b
+              -- case 2: ndm ∈ monomial_set H \ monomial_set sps.H
+              ---- then ndm ∈ monomial_set {mulf}
+              /-
+              have mmulf_le_b (ndm : σ →₀ ℕ) :
+                ndm ∈ monomial_set {mulf} \ done_mons → (mo.toSyn ndm) < b' := by
+                have : monomial_set {mulf} = Finset.map (add_mon (b - leading_monomial' mo f f_not_0)) f.support := by
                   unfold monomial_set
-                  have : sps.H ⊆ H := by unfold H; simp
-                  exact Finset.biUnion_subset_biUnion_of_subset_left _ this
-                unfold mon_H at done_sub_H
-                exact subset_trans done_sub_H this
-              last_mon := ↑b'
-              h_last_mon := sorry
-            }
-          else
-            {
-              H := sps.H
-              done_mons := done_mons
-              done_sub_H := done_sub_H
-              last_mon := ↑b'
-              h_last_mon := sorry
-            }
-      )
+                  unfold mulf
+                  unfold add_mon
+                  simp_all -- here we need add_mon_supp
+                  ext m
+                  constructor
+                  · intro hm
+
+                    sorry
+                  · sorry
+                unfold mulf
+
+                sorry
+              unfold H
+              rw [union_monset_commute, Finset.union_sdiff_distrib]
+              intro ndm hndm -- gen by aesop
+              simp_all
+              obtain ⟨left, right⟩ := hf
+              cases hndm with
+              | inl hl => simp_all
+              | inr hr => simp_all only [not_false_eq_true, mon_H, b, b']
+              -/
+            div_then_cont_mult := by
+              intro m m_done
+              by_cases m_eq_b : m = b
+              · apply Or.inr
+                exists f
+                constructor
+                · exact f_mem_G
+                · exists b - lmf
+                  subst m
+                  have : leading_monomial mo f = ↑lmf := by
+                    unfold lmf
+                    exact lm_coe_lm' mo f f_not_0
+                  rw [this, add_comm, ← WithBot.coe_add, WithBot.coe_eq_coe]
+                  apply Eq.symm
+                  exact monomial_sub_add lmf b lmf_div_b
+              · have : m ∈ sps.done_mons := by
+                  unfold done_mons at m_done
+                  simp_all
+                exact sps.div_then_cont_mult m this
+          }
+        else
+          symbolic_preprocess_rec mo G hG {
+            H := sps.H
+            done_mons := done_mons
+            done_sub_H := done_sub_H
+            last_mon := ↑b'
+            lmon_done := by
+              intro _
+              apply b_in_done
+            nd_lt_lmon := by
+              unfold mon_H at nd_lt_b
+              simp_all
+            div_then_cont_mult := by
+              intro m m_done
+              by_cases m_eq_b : m = b
+              · apply Or.inl
+                push_neg
+                intro g g_G
+                simp at h_div_able
+                let g_not_in_SubG := (@Finset.eq_empty_iff_forall_not_mem (MvPolynomial σ K) SubG).mp h_div_able g
+                unfold SubG at g_not_in_SubG
+                simp at g_not_in_SubG
+                rw [m_eq_b]
+                exact g_not_in_SubG g_G
+              · have : m ∈ sps.done_mons := by
+                  unfold done_mons at m_done
+                  simp_all
+                exact sps.div_then_cont_mult m this
+          }
+termination_by sps.last_mon
+decreasing_by
+  unfold b' at b'_lt_lmon
+  apply b'_lt_lmon
+  simp_all only [Equiv.invFun_as_coe, AddEquiv.toEquiv_eq_coe, AddEquiv.coe_toEquiv_symm, Finset.mem_union,
+    Finset.mem_singleton, or_false, Finset.mem_sdiff, not_or, and_imp, ne_eq, Decidable.not_not, Finset.mem_map_equiv,
+    not_false_eq_true, and_self, done_mons, b', mon_H, SubG, b]
+  exact b'_lt_lmon
+
+/-
+/-- Symbolic preprocessing subroutine in F4. This returns a finite superset `H'`
+of a given `H : Finset (MvPolynomial σ K)`, which satisfies the following:
+for any `m ∈ monomial_set H` which has some `f ∈ H` whose leading monomial
+divides `m`, this `H` has the monomial multiple of `f` whose leading monomial is
+adjusted to be `m`. -/
+noncomputable def symbolic_preprocess_rec' {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ)
+  (G : Finset (MvPolynomial σ K))
+  (hG : 0 ∉ G)
+  (sps : SymbProcStruct σ K mo G) :=
+  let mon_H := monomial_set sps.H
+  if hmons : sps.done_mons = mon_H
+    then -- no more monomials to be considered
+      sps
+    else -- one or more monomials are left to be considered
+      symbolic_preprocess_rec' mo G hG (symbolic_preprocess_step mo G hG sps hmons)
 termination_by sps.last_mon -- b'_lt_lmon
 decreasing_by
   -- exact b'_lt_lmon
+  unfold symbolic_preprocess_step; simp
+
   sorry
+-/
 /-
 done_mons의 원소가 모두 mon_H \ done_mons의 원소보다 크다
 b'는 mon_H \ done_mons에서 뽑아낸 최대원소
 lmon은? 바로 앞단계 iter의 mon_H \ done_mons에서 뽑아낸 최대원소
+이 앞단계에서 lmon를 done_mons에 넣었으므로 lmon ∈ done_mons
 lmon을 나누는 f가 G 안에...
 있었다 => H에 f*~(s.t. lmon이 max mon)을 더함 (=> mon_H 단조증가)
 없었다 => H 그대로 유지
 -/
 
+/-
+만족할 성질들:
+(1) L ⊆ H
+증가하는 집합열로서... 귀납적으로...
+(2) Mon(H) 안의 단항식들은 모두 G의 어떤 다항식의 LT로 나누어짐
+초기 H(=L)은 L의 정의상 ok, 이후 H는 추가하는 원소들의 정의로부터 ok
+
+termination proof 전략:
+f*~~에 의해 새로 mon_H에 들어오는 mon들은 b를 제외하면 모두 b보다 작다
+이미 b는 mon_H \ sps.done_mons에서 뽑아낸 최대원소
+그러니 다음 단계에서 뽑는 b는 지금 뽑는 b보다 작다
+-/
+
 noncomputable def symbolic_preprocess {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K]
   (mo : MonomialOrder σ)
   (G : Finset (MvPolynomial σ K))
+  (hG : 0 ∉ G)
   (H : Finset (MvPolynomial σ K)) :=
-  (symbolic_preprocess_rec mo G {
+  (symbolic_preprocess_rec mo G hG {
     H := H
     done_mons := ∅
     done_sub_H := by simp
     last_mon := ⊤
-    h_last_mon := by simp
+    lmon_done := by simp
+    nd_lt_lmon := by simp
+    div_then_cont_mult := by simp
   }).H
 
--- def
+/-
+TODO:
+  In each step, we add K-linearly reduced polynomials of all the S-pairs in hand, to the generating set G.
+  Each S-poly in each step has a standard representation by G built in that step.
+  ([coxlittleoshea1997], Chap 10. Sec 3. Exercise 2)
+  {g1, g2, ... gn} with lm(g1) max
+  gi - ci * g1
+-/
 
 
 

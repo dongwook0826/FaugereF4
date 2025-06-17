@@ -1,7 +1,10 @@
-\chapter{Faug{\`e}re F4 Algorithm}
+\chapter{Faug\`ere's F4 Algorithm}
 
-\begin{latexonly}
+%\begin{latexonly}
 \begin{definition}[Symbolic preprocessing]
+    \label{def:SymbolicPreprocessing}
+    ~\\
+    
     Input: \(L\), \(G = \sset{f_1, \cdots, f_t}\)
     (two finite sets of polynomials)
 
@@ -11,46 +14,48 @@
         \item \(H := L\)
         \item \(done := \leadmon(H)\)
         \item while \(done \ne \monset(H)\):
-        \begin{itemize}
-            \item \(x^\beta := \max_{<} (\monset(H) \setm done)\)
-            \item \(done := done \cup \sset{x^\beta}\)
-            \item if \(\exists g \in G\) such that \(\leadmon(g) | x^\beta\):
-                \begin{itemize}
-                    \item \(g :=\) one such choice of \(g\)
-                    \item \(H := H \cup \set{\frac{x^\beta}{\leadmon(g)} g}\)
-                \end{itemize}
-        \end{itemize}
+            \begin{itemize}
+                \item \(x^\beta := \max_{<} (\monset(H) \setm done)\)
+                \item \(done := done \cup \sset{x^\beta}\)
+                \item if \(\exists g \in G\) such that \(\leadmon(g) | x^\beta\):
+                    \begin{itemize}
+                        \item \(g :=\) one such choice of \(g\)
+                        \item \(H := H \cup \set{\frac{x^\beta}{\leadmon(g)} g}\)
+                    \end{itemize}
+            \end{itemize}
         return \(H\)
     \end{itemize}
 \end{definition}
-\end{latexonly}
+%\end{latexonly}
 
-\begin{htmlonly}
-    \paragraph{Symbolic preprocessing}
-
-    Input: $L$, $G = \sset{f_1, \cdots, f_t}$
-    (two finite sets of polynomials)
-
-    Output: $H$ (a finite set of polynomial containing $L$)
-
-    \begin{itemize}
-        \item $H := L$
-        \item $done := \leadmon(H)$
-        \item while $done \ne \monset(H)$:
-        \begin{itemize}
-            \item $x^\beta := \max_{<} (\monset(H) \setm done)$
-            \item $done := done \cup \sset{x^\beta}$
-            \item if $\exists g \in G$ such that $\leadmon(g) | x^\beta$:
-                \begin{itemize}
-                    \item $g :=$ one such choice of $g$
-                    \item $H := H \cup \set{\frac{x^\beta}{\leadmon(g)} g}$
-                \end{itemize}
-        \end{itemize}
-        return $H$
-    \end{itemize}
-\end{htmlonly}
+%\begin{htmlonly}
+%    \paragraph{Symbolic preprocessing}
+%
+%    Input: $L$, $G = \sset{f_1, \cdots, f_t}$
+%    (two finite sets of polynomials)
+%
+%    Output: $H$ (a finite set of polynomial containing $L$)
+%
+%    \begin{itemize}
+%        \item $H := L$
+%        \item $done := \leadmon(H)$
+%        \item while $done \ne \monset(H)$:
+%        \begin{itemize}
+%            \item $x^\beta := \max_{<} (\monset(H) \setm done)$
+%            \item $done := done \cup \sset{x^\beta}$
+%            \item if $\exists g \in G$ such that $\leadmon(g) | x^\beta$:
+%                \begin{itemize}
+%                    \item $g :=$ one such choice of $g$
+%                    \item $H := H \cup \set{\frac{x^\beta}{\leadmon(g)} g}$
+%                \end{itemize}
+%        \end{itemize}
+%        return $H$
+%    \end{itemize}
+%\end{htmlonly}
 
 \begin{theorem}[Result of symbolic preprocessing]
+    \label{thm:SymbolicPreprocessingResult}
+    \uses{def:SymbolicPreprocessing}
     The algorithm above with input \(L\) and \(G\) terminates and obtains as an
     output a set of polynomials \(H\) satisfying the following two properties:
     \begin{enumerate}[label=\textbf{(\roman*)}]
@@ -64,3 +69,47 @@
 %\begin{definition}[Faug{\`e}re F4 algorithm framework]
 
 %\end{definition}
+
+\begin{definition}[Faug\`ere's F4 algorithm]
+    \label{def:FaugereF4}
+    \uses{def:SymbolicPreprocessing}
+    ~\\
+    
+    Input: \(F = \sset{f_1, \cdots, f_s}\)
+    (a generating set of polynomials of an ideal)
+
+    Output: \(G\) (a Gr\"obner basis of the ideal, containing \(F\))
+
+    \begin{itemize}
+        \item \(G := F\)
+        \item \(t := s\)
+        \item \(B := \{\{i, j\} \mid 1 \le i < j \le s\}\)
+        \item while \(B \ne \emptyset\):
+            \begin{itemize}
+                \item \(B' := \textrm{a nonempty subset of } B\)
+                \item \(B := B \setm B'\)
+                \item \(L := \left\{\frac{\lcm(\leadmon(f_i), \leadmon(f_j))}{\leadterm(f_i)} f_i \mid \{i, j\} \in B' \right\}\)
+                \item \(H := SymbolicPreprocessing(L, G)\)
+                \item \(M := (\mathrm{coeff}(h_k, x^{\alpha_\ell}))_{k, \ell}\)\\
+                (the matrix of coefficients of H; \(x^{\alpha_\ell}\) sorted under monomial order)
+                \item \(N := \textrm{row reduced echelon form of } M\)
+                \item \(N^+ := \{n \in \mathrm{rows}(N) \mid \leadmon(n) \notin \gen{\leadmon(\mathrm{rows}(N))}\}\)
+                \item for \(n \in N^+\):
+                    \begin{itemize}
+                        \item \(t := t + 1\)
+                        \item \(f_t := \textrm{the polynomial form of } n\)
+                        \item \(G := G \cup \{f_t\}\)
+                        \item \(B := B \cup \{\{i, t\} \mid 1 \le i < t\}\)
+                    \end{itemize}
+            \end{itemize}
+        return \(G\)
+    \end{itemize}
+\end{definition}
+
+\begin{theorem}[Result of F4]
+    \label{def:FaugereF4Result}
+    \uses{thm:SymbolicPreprocessingResult, def:FaugereF4}
+    The output of Faug\`ere's F4 algorithm is a Gr\"obner basis of the ideal
+    generated by the input polynomials.
+\end{theorem}
+The proof needs an refined version of Buchberger criterion.

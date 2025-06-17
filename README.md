@@ -4,4 +4,4 @@ This repository is a formalization project for Faugere's F4 algorithm, based on 
 
 ## Documentation
 
-* [https://dongwook0826.github.io/FaugereF4/](Lean blueprint)
+* [Lean blueprint](https://dongwook0826.github.io/FaugereF4/)
