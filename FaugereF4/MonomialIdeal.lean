@@ -1,5 +1,5 @@
 import Mathlib
-import FaugereF4.MvPolyIdealBasic
+-- import FaugereF4.MvPolyIdealBasic
 
 -- namespace MvPolynomial
 
@@ -170,6 +170,21 @@ theorem Dickson_lemma_finite {σ : Type*} [inst_finite : Finite σ] :
     sorry
 -/
 
+def lcm_monomial {σ : Type*} [DecidableEq σ] (m1 m2 : σ →₀ ℕ) : σ →₀ ℕ := {
+  support := m1.support ∪ m2.support
+  toFun := λ x => max (m1 x) (m2 x)
+  mem_support_toFun := by
+    intro x
+    simp_all
+    constructor
+    · intro h1 h2
+      simp_all
+    · intro h
+      by_contra h'
+      simp_all
+}
+
+
 /-- The maximum monomial of `S : Finset (σ →₀ ℕ)`, under given monomial order `mo`. -/
 def max_monomial {σ : Type*} [DecidableEq σ]
   (mo : MonomialOrder σ) (S : Finset (σ →₀ ℕ)) :=
@@ -242,6 +257,15 @@ def leading_coeff' {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   (mo : MonomialOrder σ) (f : MvPolynomial σ R) (f_not_0 : f ≠ 0) :=
   f.coeff (leading_monomial' mo f f_not_0)
 
+lemma lc_not_zero {σ R : Type*} [DecidableEq σ] [CommSemiring R]
+  (mo : MonomialOrder σ) (f : MvPolynomial σ R) (f_not_0 : f ≠ 0) :
+  leading_coeff' mo f f_not_0 ≠ 0 := by
+  unfold leading_coeff'
+  rw [← MvPolynomial.mem_support_iff]
+  apply lm'_mem
+
+
+
 /- deprecated
 /-- The leading monomial of polynomial `f`, under given monomial order `mo`. -/
 def lead_monomial {σ R : Type*} [DecidableEq σ] [CommSemiring R]
@@ -270,15 +294,15 @@ def lead_coeff' {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   under a given monomial order `mo`. -/
 def leading_monomials_fin {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   (mo : MonomialOrder σ) (F : Finset (MvPolynomial σ R)) : Finset (σ →₀ ℕ) :=
-  F.biUnion (λ f => (leading_monomial mo f).toFinset)
+  F.biUnion (λ (f : MvPolynomial σ R) => (leading_monomial mo f).toFinset)
 
 def leading_monomials {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   (mo : MonomialOrder σ) (F : Set (MvPolynomial σ R)) : Set (σ →₀ ℕ) :=
-  ((λ f => (leading_monomial mo f).toFinset.toSet) '' F).sUnion
+  ((λ (f : MvPolynomial σ R) => (leading_monomial mo f).toFinset.toSet) '' F).sUnion
 
 def monomial_ideal {σ K : Type*} [DecidableEq σ] [Field K]
-  (s : Set (σ →₀ ℕ)) : Ideal (MvPolynomial σ K) :=
-  Ideal.span ((fun s => MvPolynomial.monomial s (1 : K)) '' s)
+  (S : Set (σ →₀ ℕ)) : Ideal (MvPolynomial σ K) :=
+  Ideal.span ((fun (s : σ →₀ ℕ) => MvPolynomial.monomial s (1 : K)) '' S)
 
 /-
 def leadterm_ideal' {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K]
@@ -361,6 +385,7 @@ lemma maxm'_monmul_commute {σ : Type*} [DecidableEq σ]
   unfold S_syn_max' at this
   exact this
 
+/-
 lemma maxm_monmul_commute {σ : Type*} [DecidableEq σ]
   (mo : MonomialOrder σ) (S : Finset (σ →₀ ℕ)) (m : σ →₀ ℕ) :
   max_monomial mo (S.map (addRightEmbedding m)) = max_monomial mo S + ↑m := by
@@ -372,11 +397,7 @@ lemma maxm_monmul_commute {σ : Type*} [DecidableEq σ]
   · simp at hS
     subst hS
     simp_all
-  /-
-  have : m = mo.toSyn.invFun (mo.toSyn.toEmbedding m) := by simp
-  rw [this]
-  sorry
-  -/
+-/
 
 lemma mul_mon_nonzero {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (f : MvPolynomial σ K) (f_not_0 : f ≠ 0) (m : σ →₀ ℕ) (a : K) (ha : a ≠ 0) :
