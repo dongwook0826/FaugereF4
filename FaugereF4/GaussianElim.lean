@@ -81,10 +81,17 @@ structure GEStruct (σ K : Type*) [DecidableEq σ] [Field K]
   SI : Finset (MvPolynomial σ K) -- input set of mvpoly's to process
   SO : Finset (MvPolynomial σ K) -- output stack of processed mvpoly's
   zero_not_mem_SI : 0 ∉ SI
+  zero_not_mem_SO : 0 ∉ SO
   span_V : Submodule.span K (SI ∪ SO) = V
-  in_lm_le_out_lm : ∀ fi ∈ SI, ∀ fo ∈ SO,
-    WithBot.map mo.toSyn (leading_monomial mo fi) ≤ WithBot.map mo.toSyn (leading_monomial mo fo)
-  out_lm_diff : ∀ f ∈ SO, ∀ g ∈ SO, f ≠ g → leading_monomial mo f ≠ leading_monomial mo g
+  in_lm_le_out_lm (fi) (hfi : fi ∈ SI) (fo) (hfo : fo ∈ SO) :
+    mo.toSyn (leading_monomial' mo fi (ne_of_mem_of_not_mem hfi zero_not_mem_SI))
+    < mo.toSyn (leading_monomial' mo fo (ne_of_mem_of_not_mem hfo zero_not_mem_SO))
+  out_lm_diff (f) (hfo : f ∈ SO) (g) (hgo : g ∈ SO) :
+    f ≠ g →
+    leading_monomial' mo f (ne_of_mem_of_not_mem hfo zero_not_mem_SO)
+    ≠ leading_monomial' mo g (ne_of_mem_of_not_mem hgo zero_not_mem_SO)
+  out_lc_one (fo) (hfo : fo ∈ SO) :
+    leading_coeff' mo fo (ne_of_mem_of_not_mem hfo zero_not_mem_SO) = 1
 
 noncomputable def eliminate_lead_term {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (S : Finset (MvPolynomial σ K))
@@ -153,6 +160,23 @@ lemma subset_span_elim {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
     apply Or.inl
     simp
 
+lemma smul_insert_span {K M : Type*} [Field K] [AddCommMonoid M] [Module K M]
+  {p : M} {s : Set M} {c : K} {hc : c ≠ 0} :
+  Submodule.span K ({p} ∪ s) = Submodule.span K ({c • p} ∪ s) := by
+  rw [Submodule.span_union, Submodule.span_union]
+  have : Submodule.span K {p} = Submodule.span K {c • p} := by
+    ext v
+    rw [Submodule.mem_span_singleton, Submodule.mem_span_singleton]
+    constructor
+    · intro ⟨c', hc'⟩
+      exists c' • c⁻¹
+      rw [← hc', smul_assoc, ← smul_assoc c⁻¹ c p]
+      simp_all
+    · intro ⟨c', hc'⟩
+      exists c' • c
+      rw [← hc', smul_assoc]
+  rw [this]
+
 noncomputable def gaussian_elim_rec {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (V : Submodule K (MvPolynomial σ K))
   (ges : GEStruct σ K mo V) : GEStruct σ K mo V :=
@@ -160,11 +184,145 @@ noncomputable def gaussian_elim_rec {σ K : Type*} [DecidableEq σ] [Field K] [D
     then
       let pivot_spec := max_lm_poly_choice mo ges.SI SI_nonempty ges.zero_not_mem_SI
       let pivot := pivot_spec.choice
-      let lm_pivot := leading_monomial' mo pivot_spec.choice pivot_spec.choice_not_zero
+      let lm_pivot := leading_monomial' mo pivot pivot_spec.choice_not_zero
+      have lc_pivot_ne_0 : pivot.coeff lm_pivot ≠ 0 := by
+        unfold lm_pivot
+        rw [← MvPolynomial.mem_support_iff]
+        apply lm'_mem
       let pivot_1 := (pivot.coeff lm_pivot)⁻¹ • pivot
+      have lm_piv1_eq_lm_piv : leading_monomial' mo pivot_1 (smul_ne_zero (inv_ne_zero lc_pivot_ne_0) pivot_spec.choice_not_zero)
+                             = leading_monomial' mo pivot (pivot_spec.choice_not_zero) := by
+        unfold pivot_1
+        unfold leading_monomial'
+        simp_all
       let SO := (eliminate_lead_term mo ges.SO pivot pivot_spec.choice_not_zero) ∪ {pivot_1}
       let SI0 := (eliminate_lead_term mo (ges.SI.erase pivot) pivot pivot_spec.choice_not_zero)
       let SI := SI0.erase 0
+      have zero_not_mem_SI : 0 ∉ SI := by
+        unfold SI
+        simp
+      have zero_not_mem_SO : 0 ∉ SO := by
+        unfold SO
+        simp
+        constructor
+        · by_contra h_cont
+          simp [eliminate_lead_term] at h_cont
+          let ⟨a, a_mem, ha⟩ := h_cont
+          -- simp at ha
+          let key := ges.in_lm_le_out_lm pivot pivot_spec.choice_mem a a_mem
+          rw [sub_eq_zero, ← smul_assoc] at ha
+          let C := a.coeff lm_pivot • (pivot.coeff lm_pivot)⁻¹
+          have C_not_0 : C ≠ 0 := by
+            unfold C lm_pivot
+            by_contra HC
+            rw [HC] at ha
+            simp at ha
+            rw [ha] at a_mem
+            exact ges.zero_not_mem_SO a_mem
+          let keyc := lm'_smul_eq_lm' mo pivot pivot_spec.choice_not_zero C C_not_0
+          let keyc' := lm'_eq_of_eq mo a (C • pivot) ha (ne_of_mem_of_not_mem a_mem ges.zero_not_mem_SO)
+          /-
+          have keyc : leading_monomial' mo pivot pivot_spec.choice_not_zero
+                    = leading_monomial' mo a (ne_of_mem_of_not_mem a_mem ges.zero_not_mem_SO) := by
+            rw [ha]
+            rcases em (a.coeff lm_pivot = 0) with h0 | h0
+            · unfold lm_pivot at h0
+              simp [h0] at ha
+              rw [ha] at a_mem
+              by_contra _
+              exact ges.zero_not_mem_SO a_mem
+            · rw [← lm_smul_eq_lm mo _ (a.coeff lm_pivot) h0]
+              rw [← lm_smul_eq_lm mo pivot _ (inv_ne_zero lc_pivot_ne_0)]
+          -/
+          apply ne_of_lt at key
+          rw [keyc, ← keyc'] at key
+          trivial
+        · push_neg
+          unfold pivot_1
+          rw [ne_comm]
+          exact smul_ne_zero (inv_ne_zero lc_pivot_ne_0) (pivot_spec.choice_not_zero)
+      have lm_fi_lt_lm_piv (fi) (hfi : fi ∈ SI) :
+        mo.toSyn (leading_monomial' mo fi (ne_of_mem_of_not_mem hfi zero_not_mem_SI))
+        < mo.toSyn lm_pivot := by
+        unfold lm_pivot pivot
+        simp [SI, SI0, eliminate_lead_term] at hfi
+        let ⟨fi_ne_0, fi', ⟨fi'_ne_piv, fi'_mem_ges_SI⟩, hfi'⟩ := hfi
+        have lm_piv_not_in_fi : fi.coeff lm_pivot = 0 := by
+          rw [← hfi']
+          unfold lm_pivot
+          simp
+          rw [inv_mul_cancel₀ (by unfold lm_pivot at lc_pivot_ne_0; exact lc_pivot_ne_0)]
+          simp
+        rw [← MvPolynomial.notMem_support_iff] at lm_piv_not_in_fi
+        have mo_fi : ∀ m ∈ fi.support, mo.toSyn m ≠ mo.toSyn lm_pivot := by
+          intro m mem_fi
+          simp
+          exact ne_of_mem_of_not_mem mem_fi lm_piv_not_in_fi
+        let fi_supp_sub := MvPolynomial.support_sub σ fi' (fi'.coeff lm_pivot • (pivot.coeff lm_pivot)⁻¹ • pivot)
+        rw [hfi'] at fi_supp_sub
+        have cont_1 : (fi'.coeff lm_pivot • (pivot.coeff lm_pivot)⁻¹ • pivot).support ⊆ pivot.support := by
+          rw [← smul_assoc]
+          apply MvPolynomial.support_smul
+        have cont_2 : fi'.support ∪ (fi'.coeff lm_pivot • (pivot.coeff lm_pivot)⁻¹ • pivot).support ⊆ fi'.support ∪ pivot.support := by
+          apply Finset.union_subset_union
+          · simp
+          · exact cont_1
+        have mo_fi' : ∀ m ∈ fi'.support, mo.toSyn m ≤ mo.toSyn lm_pivot := by
+          let lm_fi'_le_lm_piv := pivot_spec.choice_max_lm fi' fi'_mem_ges_SI
+          intro m mem_fi'
+          unfold lm_pivot pivot
+          have : mo.toSyn m ≤ mo.toSyn (leading_monomial' mo fi' (ne_of_mem_of_not_mem fi'_mem_ges_SI ges.zero_not_mem_SI)) := by
+            unfold leading_monomial' max_monomial'
+            simp
+            let map_mem_fi' := Finset.mem_map_of_mem (mo.toSyn.toEquiv).toEmbedding mem_fi'
+            simp only [Equiv.toEmbedding_apply, AddEquiv.toEquiv_eq_coe] at map_mem_fi'
+            apply Finset.le_max' _ (mo.toSyn m) map_mem_fi'
+          exact le_trans this lm_fi'_le_lm_piv
+        have mo_piv : ∀ m ∈ pivot.support, mo.toSyn m ≤ mo.toSyn lm_pivot := by
+          intro m mem_piv
+          unfold lm_pivot leading_monomial' max_monomial'
+          simp
+          let map_mem_piv := Finset.mem_map_of_mem (mo.toSyn.toEquiv).toEmbedding mem_piv
+          simp only [Equiv.toEmbedding_apply, AddEquiv.toEquiv_eq_coe] at map_mem_piv
+          apply Finset.le_max' _ (mo.toSyn m) map_mem_piv
+        have mo_fi'_piv : ∀ m ∈ fi'.support ∪ pivot.support, mo.toSyn m ≤ mo.toSyn lm_pivot := by
+          intro m hm
+          rw [Finset.mem_union] at hm
+          rcases hm with mem_fi' | mem_piv
+          · exact mo_fi' m mem_fi'
+          · exact mo_piv m mem_piv
+        apply lt_of_le_of_ne
+        · apply mo_fi'_piv
+          apply cont_2
+          apply fi_supp_sub
+          apply lm'_mem mo fi _
+        · apply mo_fi
+          apply lm'_mem mo fi _
+      have lm_piv_lt_lm_fo_ne_piv (fo) (hfo : fo ∈ SO) (fo_ne_piv : fo ≠ pivot_1) :
+        mo.toSyn lm_pivot
+        < mo.toSyn (leading_monomial' mo fo (ne_of_mem_of_not_mem hfo zero_not_mem_SO)) := by
+        have hfo' : fo ∈ eliminate_lead_term mo ges.SO pivot pivot_spec.choice_not_zero := by
+          unfold SO at hfo
+          simp at hfo
+          exact Or.resolve_right hfo fo_ne_piv
+        unfold eliminate_lead_term at hfo'
+        simp at hfo'
+        let ⟨a, a_mem, ha⟩ := hfo'
+        rw [← smul_assoc] at ha
+        let lm_piv_lt_lm_a := ges.in_lm_le_out_lm pivot pivot_spec.choice_mem a a_mem
+        let a_ss_piv_ne_0 := sub_smul_ne_0 mo pivot a
+          pivot_spec.choice_not_zero
+          (ne_of_mem_of_not_mem a_mem ges.zero_not_mem_SO)
+          lm_piv_lt_lm_a
+          (a.coeff lm_pivot • (pivot.coeff lm_pivot)⁻¹)
+        let lm_ss_eq_lm_fo := lm'_eq_of_eq mo (a - (a.coeff lm_pivot • (pivot.coeff lm_pivot)⁻¹) • pivot) fo ha a_ss_piv_ne_0
+        let lm_ss_eq_lm_a := lm_sub_smul_eq_lm mo pivot a
+          pivot_spec.choice_not_zero
+          (ne_of_mem_of_not_mem a_mem ges.zero_not_mem_SO)
+          lm_piv_lt_lm_a
+          (a.coeff lm_pivot • (pivot.coeff lm_pivot)⁻¹)
+        rw [← lm_ss_eq_lm_fo, lm_ss_eq_lm_a]
+        exact lm_piv_lt_lm_a
       have SI_card_decr : SI.card < ges.SI.card := by -- termination proof
         have erase_pivot_decr : (ges.SI.erase pivot).card < ges.SI.card := by
           apply Finset.card_lt_card
@@ -184,9 +342,8 @@ noncomputable def gaussian_elim_rec {σ K : Type*} [DecidableEq σ] [Field K] [D
       gaussian_elim_rec mo V {
         SI := SI
         SO := SO
-        zero_not_mem_SI := by
-          unfold SI
-          simp
+        zero_not_mem_SI := zero_not_mem_SI
+        zero_not_mem_SO := zero_not_mem_SO
         span_V := by
           rw [← ges.span_V]
           apply Submodule.span_eq_span
@@ -231,21 +388,245 @@ noncomputable def gaussian_elim_rec {σ K : Type*} [DecidableEq σ] [Field K] [D
                 apply SMulMemClass.smul_mem
                 apply Submodule.subset_span
                 apply Or.inl pivot_spec.choice_mem
-          · apply Set.union_subset
-            ·
-              sorry
-            ·
-              sorry
+          · have pivot_mp : (ges.SI \ {pivot}) ∪ {pivot} = ges.SI := by
+              simp
+              exact pivot_spec.choice_mem
+            rw [← pivot_mp, Finset.coe_union, Set.union_assoc, ← Finset.coe_union]
+            apply Set.union_subset
+            · rw [← Finset.erase_eq]
+              let cont_0 := subset_span_elim mo (ges.SI \ {pivot}) pivot pivot_spec.choice_not_zero
+              rw [← Finset.erase_eq] at cont_0
+              rw [
+                @smul_insert_span K _ _ _ _
+                  pivot
+                  (eliminate_lead_term mo (ges.SI.erase pivot) pivot _)
+                  (pivot.coeff lm_pivot)⁻¹
+                  (inv_ne_zero lc_pivot_ne_0)
+              ] at cont_0
+              have cont_1 : {pivot_1} ∪ SI0 ⊆ SI0 ∪ SO := by
+                rw [Finset.union_comm]
+                apply Finset.union_subset_union (by simp) (by unfold SO; simp)
+              rw [← Finset.coe_subset, Finset.coe_union, Finset.coe_union, Finset.coe_singleton] at cont_1
+              have cont_2 : (Submodule.span K (SI0 ∪ SO) : Submodule K (MvPolynomial σ K)) = Submodule.span K (SI ∪ SO) := by
+                unfold SI
+                rcases em (0 ∈ SI0) with h0 | h0
+                · have : (SI0.erase 0).toSet ∪ {0} = SI0.toSet := by simp; exact h0
+                  rw [← this, Set.union_right_comm]
+                  simp
+                · rw [← Finset.erase_eq_self] at h0
+                  rw [h0]
+              rw [← cont_2]
+              calc
+                ↑(ges.SI.erase pivot) ⊆ SetLike.coe (Submodule.span K ({pivot_1} ∪ SI0) : Submodule K (MvPolynomial σ K)) := by
+                  unfold pivot_1 SI0
+                  exact cont_0
+                _ ⊆ SetLike.coe (Submodule.span K (SI0 ∪ SO) : Submodule K (MvPolynomial σ K)) := by
+                  apply Submodule.span_mono
+                  exact cont_1
+            · rw [Finset.coe_union, Set.union_subset_iff]
+              constructor
+              · simp
+                have : pivot_1 ∈ Submodule.span K (SI ∪ SO) := by
+                  apply Submodule.subset_span
+                  unfold SO
+                  simp
+                apply Submodule.smul_mem _ (pivot.coeff lm_pivot) at this
+                unfold pivot_1 at this
+                rw [smul_inv_smul₀ lc_pivot_ne_0] at this
+                exact this
+              · let cont_0 := subset_span_elim mo ges.SO pivot pivot_spec.choice_not_zero
+                rw [
+                  @smul_insert_span K (MvPolynomial σ K) _ _ _
+                    pivot
+                    (eliminate_lead_term mo ges.SO pivot pivot_spec.choice_not_zero)
+                    (pivot.coeff lm_pivot)⁻¹
+                    (inv_ne_zero lc_pivot_ne_0)
+                ] at cont_0
+                have cont_1 : SetLike.coe (Submodule.span K SO : Submodule K (MvPolynomial σ K)) ⊆ SetLike.coe (Submodule.span K (SI ∪ SO)) := by
+                  apply Submodule.span_mono
+                  simp
+                calc
+                  ges.SO.toSet ⊆
+                  SetLike.coe (Submodule.span K (
+                    {(MvPolynomial.coeff lm_pivot pivot)⁻¹ • pivot} ∪
+                    ↑(eliminate_lead_term mo ges.SO pivot pivot_spec.choice_not_zero))
+                    : Submodule K (MvPolynomial σ K)) := by
+                    exact cont_0
+                  _ ⊆
+                  SetLike.coe (Submodule.span K (SI ∪ SO)) := by
+                    rw [Set.union_comm]
+                    subst SO pivot_1
+                    simp_all
         in_lm_le_out_lm := by -- cases for fo : pivot => pivot_spec.choice_max_lm | other => ges.in_lm_le_out_lm
-          sorry
+          intro fi hfi fo hfo
+          -- rw [lm_coe_lm' mo fi (ne_of_mem_of_not_mem hfi zero_not_mem_SI)]
+          -- rw [lm_coe_lm' mo fo (ne_of_mem_of_not_mem hfo zero_not_mem_SO)]
+          -- simp
+          /-
+          let hfo_ := hfo
+          unfold SO at hfo_
+          simp at hfo_
+          -/
+          cases em (fo = pivot_1) with
+          | inl fo_piv =>
+            subst fo_piv
+            rw [lm_piv1_eq_lm_piv]
+            exact lm_fi_lt_lm_piv fi hfi
+          | inr fo_ne_piv =>
+            /-
+            unfold eliminate_lead_term at fo_ne_piv
+            simp at fo_ne_piv
+            let ⟨a, a_mem, ha⟩ := fo_ne_piv
+            -- rw [sub_eq_iff_eq_add] at ha
+            rw [← smul_assoc] at ha
+            let lm_piv_lt_lm_a := ges.in_lm_le_out_lm pivot pivot_spec.choice_mem a a_mem
+              -- rw [lm_coe_lm' mo pivot pivot_spec.choice_not_zero] at key
+              -- rw [lm_coe_lm' mo a (ne_of_mem_of_not_mem a_mem ges.zero_not_mem_SO)] at key
+              -- simp at key
+              -- exact key
+            let a_ss_piv_ne_0 := sub_smul_ne_0 mo pivot a
+              pivot_spec.choice_not_zero
+              (ne_of_mem_of_not_mem a_mem ges.zero_not_mem_SO)
+              lm_piv_lt_lm_a
+              (a.coeff lm_pivot • (pivot.coeff lm_pivot)⁻¹)
+            /-
+            have lm_ss_eq_lm_fo : leading_monomial' mo (a - (a.coeff lm_pivot • (pivot.coeff lm_pivot)⁻¹) • pivot) a_ss_piv_ne_0
+                                = leading_monomial' mo fo (ne_of_mem_of_not_mem hfo zero_not_mem_SO) := by
+              subst ha -- autogenerated by aesop; todo: replace the proof with lm'_eq_of_eq
+              simp_all only [Finset.mem_erase, ne_eq, not_true_eq_false, false_and, not_false_eq_true, smul_eq_mul,
+                pivot_1, lm_pivot, pivot, pivot_spec, SI, SI0]
+            -/
+            let lm_ss_eq_lm_fo := lm'_eq_of_eq mo (a - (a.coeff lm_pivot • (pivot.coeff lm_pivot)⁻¹) • pivot) fo ha a_ss_piv_ne_0
+            let lm_ss_eq_lm_a := lm_sub_smul_eq_lm mo pivot a
+              pivot_spec.choice_not_zero
+              (ne_of_mem_of_not_mem a_mem ges.zero_not_mem_SO)
+              lm_piv_lt_lm_a
+              (a.coeff lm_pivot • (pivot.coeff lm_pivot)⁻¹)
+            rw [← lm_ss_eq_lm_fo, lm_ss_eq_lm_a]
+            exact lt_trans (lm_fi_lt_lm_piv fi hfi) lm_piv_lt_lm_a
+            -/
+            exact lt_trans
+              (lm_fi_lt_lm_piv fi hfi)
+              (lm_piv_lt_lm_fo_ne_piv fo hfo fo_ne_piv)
         out_lm_diff := by -- ges.in_lm_le_out_lm
-          sorry
+          intro f hfo g hgo hfg_ne
+          -- rw [lm_coe_lm' mo f (ne_of_mem_of_not_mem hfo zero_not_mem_SO)]
+          -- rw [lm_coe_lm' mo g (ne_of_mem_of_not_mem hgo zero_not_mem_SO)]
+          /-
+          simp
+          let hfo_ := hfo
+          unfold SO at hfo_
+          simp at hfo_
+          -/
+          cases em (f = pivot_1) with
+          | inl f_piv =>
+            simp
+            subst f_piv
+            rw [lm_piv1_eq_lm_piv, ← AddEquiv.apply_eq_iff_eq mo.toSyn]
+            push_neg
+            apply ne_of_lt
+            exact lm_piv_lt_lm_fo_ne_piv g hgo (Ne.symm hfg_ne)
+          | inr f_ne_piv =>
+            cases em (g = pivot_1) with
+            | inl g_piv =>
+              rw [ne_comm]
+              simp
+              subst g_piv
+              rw [lm_piv1_eq_lm_piv, ← AddEquiv.apply_eq_iff_eq mo.toSyn]
+              push_neg
+              apply ne_of_lt
+              exact lm_piv_lt_lm_fo_ne_piv f hfo hfg_ne
+            | inr g_ne_piv =>
+              have hfo' : f ∈ eliminate_lead_term mo ges.SO pivot pivot_spec.choice_not_zero := by
+                unfold SO at hfo
+                simp at hfo
+                exact Or.resolve_right hfo f_ne_piv
+              have hgo' : g ∈ eliminate_lead_term mo ges.SO pivot pivot_spec.choice_not_zero := by
+                unfold SO at hgo
+                simp at hgo
+                exact Or.resolve_right hgo g_ne_piv
+              unfold eliminate_lead_term at hfo'
+              unfold eliminate_lead_term at hgo'
+              simp at hfo'
+              simp at hgo'
+              let ⟨af, af_mem, haf⟩ := hfo'
+              let ⟨ag, ag_mem, hag⟩ := hgo'
+              rw [← smul_assoc, eq_comm] at haf
+              rw [← smul_assoc, eq_comm] at hag
+              let lm_f_eq_lm_ss := lm'_eq_of_eq mo f _ haf (ne_of_mem_of_not_mem hfo zero_not_mem_SO)
+              let lm_g_eq_lm_ss := lm'_eq_of_eq mo g _ hag (ne_of_mem_of_not_mem hgo zero_not_mem_SO)
+              let lm_ss_eq_lm_af := lm_sub_smul_eq_lm mo pivot af
+                pivot_spec.choice_not_zero
+                (ne_of_mem_of_not_mem af_mem ges.zero_not_mem_SO)
+                (ges.in_lm_le_out_lm pivot pivot_spec.choice_mem af af_mem)
+                (af.coeff lm_pivot • (pivot.coeff lm_pivot)⁻¹)
+              let lm_ss_eq_lm_ag := lm_sub_smul_eq_lm mo pivot ag
+                pivot_spec.choice_not_zero
+                (ne_of_mem_of_not_mem ag_mem ges.zero_not_mem_SO)
+                (ges.in_lm_le_out_lm pivot pivot_spec.choice_mem ag ag_mem)
+                (ag.coeff lm_pivot • (pivot.coeff lm_pivot)⁻¹)
+              rw [lm_f_eq_lm_ss, lm_ss_eq_lm_af, lm_g_eq_lm_ss, lm_ss_eq_lm_ag]
+              have af_ne_ag : af ≠ ag := by
+                by_contra af_eq_ag
+                subst af_eq_ag
+                simp_all
+              exact ges.out_lm_diff af af_mem ag ag_mem af_ne_ag
+        out_lc_one := by
+          intro fo hfo
+          cases em (fo = pivot_1) with
+          | inl fo_piv =>
+            subst fo_piv
+            unfold leading_coeff'
+            rw [lm_piv1_eq_lm_piv]
+            simp only [pivot_1, MvPolynomial.coeff_smul, lm_pivot]
+            exact inv_mul_cancel₀ lc_pivot_ne_0
+          | inr fo_ne_piv =>
+            unfold leading_coeff'
+            have hfo' : fo ∈ eliminate_lead_term mo ges.SO pivot pivot_spec.choice_not_zero := by
+              unfold SO at hfo
+              simp at hfo
+              exact Or.resolve_right hfo fo_ne_piv
+            unfold eliminate_lead_term at hfo'
+            simp at hfo'
+            let ⟨af, af_mem, haf⟩ := hfo'
+            rw [← smul_assoc, eq_comm] at haf
+            let lm_fo_eq_lm_ss := lm'_eq_of_eq mo fo _ haf (ne_of_mem_of_not_mem hfo zero_not_mem_SO)
+            let lm_ss_eq_lm_af := lm_sub_smul_eq_lm mo pivot af
+              pivot_spec.choice_not_zero
+              (ne_of_mem_of_not_mem af_mem ges.zero_not_mem_SO)
+              (ges.in_lm_le_out_lm pivot pivot_spec.choice_mem af af_mem)
+              (af.coeff lm_pivot • (pivot.coeff lm_pivot)⁻¹)
+            rw [lm_fo_eq_lm_ss, lm_ss_eq_lm_af, haf]
+            have piv_coeff_af_eq_0 : pivot.coeff (leading_monomial' mo af (ne_of_mem_of_not_mem af_mem ges.zero_not_mem_SO)) = 0 := by
+              rw [← MvPolynomial.notMem_support_iff]
+              by_contra H
+              unfold leading_monomial' max_monomial' at H
+              rw [AddEquiv.invFun_eq_symm, ← Finset.mem_map' mo.toSyn.toEmbedding] at H
+              rw [Equiv.toEmbedding_apply] at H
+              have (x) : mo.toSyn.toEquiv (mo.toSyn.symm x) = x := by
+                simp_all
+              -- simp at H
+              rw [this] at H
+              simp only [AddEquiv.toEquiv_eq_coe, Equiv.apply_symm_apply mo.toSyn.toEquiv] at H
+              have le_cont : mo.toSyn (leading_monomial' mo af (ne_of_mem_of_not_mem af_mem ges.zero_not_mem_SO)) ≤ mo.toSyn lm_pivot := by
+                unfold lm_pivot leading_monomial' max_monomial'
+                rw [AddEquiv.invFun_eq_symm]
+                simp only [AddEquiv.apply_symm_apply mo.toSyn]
+                exact Finset.le_max' _ _ H
+              have gt_cont : mo.toSyn lm_pivot < mo.toSyn (leading_monomial' mo af (ne_of_mem_of_not_mem af_mem ges.zero_not_mem_SO)) := by
+                exact ges.in_lm_le_out_lm pivot pivot_spec.choice_mem af af_mem
+              exact not_le_of_gt gt_cont le_cont
+            simp
+            rw [piv_coeff_af_eq_0]
+            simp
+            exact ges.out_lc_one af af_mem
       }
     else
       {
         SI := ∅
         SO := ges.SO
         zero_not_mem_SI := by simp
+        zero_not_mem_SO := ges.zero_not_mem_SO
         span_V := by
           have prev_span_V : Submodule.span K (↑ges.SI ∪ ↑ges.SO) = V := ges.span_V
           simp at SI_nonempty
@@ -255,6 +636,7 @@ noncomputable def gaussian_elim_rec {σ K : Type*} [DecidableEq σ] [Field K] [D
           intro fi hfi
           trivial
         out_lm_diff := ges.out_lm_diff
+        out_lc_one := ges.out_lc_one
       }
 termination_by ges.SI.card
 decreasing_by exact SI_card_decr
@@ -266,11 +648,15 @@ noncomputable def gaussian_elim {σ K : Type*} [DecidableEq σ] [Field K] [Decid
     SI := input.erase 0
     SO := ∅
     zero_not_mem_SI := by simp
+    zero_not_mem_SO := by simp
     span_V := by simp
     in_lm_le_out_lm := by
       intro _ _ fo hfo
       trivial
     out_lm_diff := by
       intro f hf
+      trivial
+    out_lc_one := by
+      intro fo hfo
       trivial
   }

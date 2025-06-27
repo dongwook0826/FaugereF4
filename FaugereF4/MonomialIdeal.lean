@@ -229,6 +229,115 @@ lemma lm'_mem {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   unfold leading_monomial'
   apply maxm'_mem
 
+lemma lm'_eq_of_eq {σ R : Type*} [DecidableEq σ] [CommSemiring R]
+  (mo : MonomialOrder σ) (f g : MvPolynomial σ R) (f_eq_g : f = g) (f_not_0 : f ≠ 0) :
+  leading_monomial' mo f f_not_0 = leading_monomial' mo g (by rw [← f_eq_g]; exact f_not_0) := by
+  subst f_eq_g
+  simp_all
+
+lemma mem_le_lm' {σ R : Type*} [DecidableEq σ] [CommSemiring R]
+  (mo : MonomialOrder σ) (f : MvPolynomial σ R) (f_not_0 : f ≠ 0) :
+  ∀ m ∈ f.support, mo.toSyn m ≤ mo.toSyn (leading_monomial' mo f f_not_0) := by
+  intro m hmf
+  unfold leading_monomial' max_monomial'
+  rw [← Finset.mem_map' mo.toSyn.toEmbedding] at hmf
+  simp only [Equiv.toEmbedding_apply, AddEquiv.toEquiv_eq_coe] at hmf
+  simp
+  apply Finset.le_max' _ (mo.toSyn m) hmf
+
+lemma lm_smul_eq_lm {σ R : Type*} [DecidableEq σ] [CommSemiring R] [IsDomain R]
+  (mo : MonomialOrder σ) (f : MvPolynomial σ R) (c : R) (c_not_0 : c ≠ 0) :
+  leading_monomial mo f = leading_monomial mo (c • f) := by
+  unfold leading_monomial
+  unfold max_monomial
+  simp_all
+
+lemma lm'_smul_eq_lm' {σ R : Type*} [DecidableEq σ] [CommSemiring R] [IsDomain R]
+  (mo : MonomialOrder σ) (f : MvPolynomial σ R) (f_not_0 : f ≠ 0) (c : R) (c_not_0 : c ≠ 0) :
+  leading_monomial' mo f f_not_0 = leading_monomial' mo (c • f) (smul_ne_zero c_not_0 f_not_0) := by
+  unfold leading_monomial'
+  unfold max_monomial'
+  simp_all
+
+lemma sub_smul_ne_0 {σ R : Type*} [DecidableEq σ] [CommRing R] [IsDomain R]
+  (mo : MonomialOrder σ) (f g : MvPolynomial σ R)
+  (hf : f ≠ 0) (hg : g ≠ 0)
+  (hfg : mo.toSyn (leading_monomial' mo f hf) < mo.toSyn (leading_monomial' mo g hg))
+  (c : R) :
+  g - c • f ≠ 0 := by
+  by_contra H
+  rw [sub_eq_zero] at H
+  rcases em (c = 0) with hc0 | hc0
+  · rw [hc0] at H
+    simp at H
+    exact hg H
+  · rw [lm'_smul_eq_lm' mo f hf c hc0] at hfg
+    subst H
+    simp_all
+
+lemma lm_sub_smul_eq_lm {σ R : Type*} [DecidableEq σ] [CommRing R] [IsDomain R]
+  (mo : MonomialOrder σ) (f g : MvPolynomial σ R)
+  (hf : f ≠ 0) (hg : g ≠ 0)
+  (hfg : mo.toSyn (leading_monomial' mo f hf) < mo.toSyn (leading_monomial' mo g hg))
+  (c : R) :
+  leading_monomial' mo (g - c • f) (sub_smul_ne_0 mo f g hf hg hfg c) = leading_monomial' mo g hg := by
+  let lmg := leading_monomial' mo g hg
+  have supp_subs : (g - c • f).support ⊆ g.support ∪ f.support := by
+    calc
+      (g - c • f).support ⊆ g.support ∪ (c • f).support := MvPolynomial.support_sub σ g (c • f)
+      _ ⊆ g.support ∪ f.support := by apply Finset.union_subset_union; simp; apply MvPolynomial.support_smul
+  have hmg : ∀ m ∈ g.support, mo.toSyn m ≤ mo.toSyn lmg := mem_le_lm' mo g hg
+  have hmfg : ∀ m ∈ f.support, mo.toSyn m < mo.toSyn lmg := by
+    intro m hmf
+    have : mo.toSyn m ≤ mo.toSyn (leading_monomial' mo f hf) := by
+      unfold leading_monomial' max_monomial'
+      rw [← Finset.mem_map' mo.toSyn.toEmbedding] at hmf
+      simp only [Equiv.toEmbedding_apply, AddEquiv.toEquiv_eq_coe] at hmf
+      simp
+      apply Finset.le_max' _ (mo.toSyn m) hmf
+    calc
+      mo.toSyn m ≤ mo.toSyn (leading_monomial' mo f hf) := this
+      _ < mo.toSyn lmg := by unfold lmg; exact hfg
+  have lmg_mem : lmg ∈ (g - c • f).support := by
+    simp
+    have : f.coeff lmg = 0 := by
+      rw [← MvPolynomial.notMem_support_iff]
+      by_contra H
+      let H' := @ne_of_lt _ _ (mo.toSyn lmg) (mo.toSyn lmg)
+      rw [← ne_self_iff_false (mo.toSyn lmg)]
+      exact H' (hmfg lmg H)
+    rw [this]
+    simp
+    push_neg
+    rw [← MvPolynomial.mem_support_iff]
+    exact lm'_mem mo g hg
+  rw [← AddEquiv.apply_eq_iff_eq mo.toSyn]
+  apply le_antisymm
+  · unfold leading_monomial' max_monomial'
+    simp only [AddEquiv.toEquiv_eq_coe, Equiv.invFun_as_coe, AddEquiv.coe_toEquiv_symm,
+      AddEquiv.apply_symm_apply, Finset.max'_le_iff, Finset.mem_map_equiv, AddEquiv.coe_toEquiv_symm]
+    intro y hy
+    apply supp_subs at hy
+    simp only [Finset.mem_union] at hy
+    cases hy with
+    | inl mem_g =>
+      unfold lmg leading_monomial' max_monomial' at hmg
+      simp only [AddEquiv.toEquiv_eq_coe, Equiv.invFun_as_coe, AddEquiv.coe_toEquiv_symm,
+        AddEquiv.apply_symm_apply, Finset.max'_le_iff, Finset.mem_map_equiv, AddEquiv.coe_toEquiv_symm] at hmg
+      let goal := hmg (mo.toSyn.symm y) mem_g
+      simp at goal
+      exact goal
+    | inr mem_f =>
+      apply le_of_lt
+      unfold lmg leading_monomial' max_monomial' at hmfg
+      simp only [AddEquiv.toEquiv_eq_coe, Equiv.invFun_as_coe, AddEquiv.coe_toEquiv_symm,
+        AddEquiv.apply_symm_apply, Finset.max'_le_iff, Finset.mem_map_equiv, AddEquiv.coe_toEquiv_symm] at hmfg
+      let goal := hmfg (mo.toSyn.symm y) mem_f
+      simp at goal
+      exact goal
+  · exact mem_le_lm' mo (g - c • f) (sub_smul_ne_0 mo f g hf hg hfg c) lmg lmg_mem
+
+
 /-- `max_monomial'` of a Finset is type-coerced to `max_monomial`, when `S.Nonempty` is
 removed. A monomial order version of `Finset.coe_max'`. -/
 lemma maxm_coe_maxm' {σ : Type*} [DecidableEq σ]
@@ -264,31 +373,6 @@ lemma lc_not_zero {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   rw [← MvPolynomial.mem_support_iff]
   apply lm'_mem
 
-
-
-/- deprecated
-/-- The leading monomial of polynomial `f`, under given monomial order `mo`. -/
-def lead_monomial {σ R : Type*} [DecidableEq σ] [CommSemiring R]
-  (mo : MonomialOrder σ) (f : MvPolynomial σ R) :=
-  -- @Finset.max _ mo.lo (Finset.map mo.toSyn f.support)
-  WithBot.map mo.toSyn.invFun (@Finset.max _ mo.lo (Finset.map mo.toSyn f.support))
-
-/-- A variant of `leading_monomial`: given `f ≠ 0`, the `WithBot` can be peeled off. -/
-def lead_monomial' {σ R : Type*} [DecidableEq σ] [CommSemiring R]
-  (mo : MonomialOrder σ) (f : MvPolynomial σ R) (f_not_0 : f ≠ 0) :=
-  mo.toSyn.invFun (
-    @Finset.max' _ mo.lo
-      (Finset.map mo.toSyn f.support)
-      (by
-        have : f.support.Nonempty := by simp_all
-        simp_all
-      )
-    )
-
-def lead_coeff' {σ R : Type*} [DecidableEq σ] [CommSemiring R]
-  (mo : MonomialOrder σ) (f : MvPolynomial σ R) (f_not_0 : f ≠ 0) :=
-  f.coeff (lead_monomial' mo f f_not_0)
--/
 
 /-- The set of leading monomials of `f ∈ F`,
   under a given monomial order `mo`. -/
