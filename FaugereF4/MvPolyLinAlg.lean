@@ -27,3 +27,17 @@ lemma ideal_span_mem_iff_lin_combi (R : Type*) [Semiring R] (s : Set R) :
   Ideal.span s = {f | ∃ h : ↑s →₀ R, f = ∑ g ∈ h.support, h g * g} := by
   ext f
   exact ideal_span_mem_iff_lin_combi' R s f
+
+/-
+lemma ideal_span_mem_iff_finsum' (R : Type*) [Semiring R] (s : Set R) (f : R) :
+  f ∈ Ideal.span s ↔ ∃ h : R →₀ R, ↑h.support ⊆ s ∧ f = ∑ g ∈ h.support, h g * g := by
+  rw [ideal_span_mem_iff_lin_combi']
+  constructor
+  · intro ⟨h, hh⟩
+    exists h.embDomain {
+      toFun := id
+      inj' := by simp
+    }
+
+  ·
+-/

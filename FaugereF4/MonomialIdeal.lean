@@ -170,6 +170,7 @@ theorem Dickson_lemma_finite {σ : Type*} [inst_finite : Finite σ] :
     sorry
 -/
 
+/-- The least common multiple of two monomial exponents. -/
 def lcm_monomial {σ : Type*} [DecidableEq σ] (m1 m2 : σ →₀ ℕ) : σ →₀ ℕ := {
   support := m1.support ∪ m2.support
   toFun := λ x => max (m1 x) (m2 x)
@@ -205,6 +206,7 @@ lemma maxm'_mem {σ : Type*} [DecidableEq σ]
   rw [this]
   apply Finset.max'_mem
 
+/-- Maximum monomials equal if the given two monomial sets equal. -/
 lemma set_eq_impl_maxm'_eq {σ : Type*} [DecidableEq σ]
   (mo : MonomialOrder σ) (S1 S2 : Finset (σ →₀ ℕ))
   (hS1 : S1.Nonempty) (hS2 : S2.Nonempty) (hSeq : S1 = S2) :
@@ -229,12 +231,16 @@ lemma lm'_mem {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   unfold leading_monomial'
   apply maxm'_mem
 
+/-- The leading monomials equal, given the two monomials equal and one of them
+is not zero. -/
 lemma lm'_eq_of_eq {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   (mo : MonomialOrder σ) (f g : MvPolynomial σ R) (f_eq_g : f = g) (f_not_0 : f ≠ 0) :
   leading_monomial' mo f f_not_0 = leading_monomial' mo g (by rw [← f_eq_g]; exact f_not_0) := by
   subst f_eq_g
   simp_all
 
+/-- Each monomial in a polynomial is never greater than the leading monomial
+of the polynomial. -/
 lemma mem_le_lm' {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   (mo : MonomialOrder σ) (f : MvPolynomial σ R) (f_not_0 : f ≠ 0) :
   ∀ m ∈ f.support, mo.toSyn m ≤ mo.toSyn (leading_monomial' mo f f_not_0) := by
@@ -245,6 +251,7 @@ lemma mem_le_lm' {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   simp
   apply Finset.le_max' _ (mo.toSyn m) hmf
 
+/-- A polynomial and its nonzero scalar multiple has the same leading monomial. -/
 lemma lm_smul_eq_lm {σ R : Type*} [DecidableEq σ] [CommSemiring R] [IsDomain R]
   (mo : MonomialOrder σ) (f : MvPolynomial σ R) (c : R) (c_not_0 : c ≠ 0) :
   leading_monomial mo f = leading_monomial mo (c • f) := by
@@ -252,6 +259,8 @@ lemma lm_smul_eq_lm {σ R : Type*} [DecidableEq σ] [CommSemiring R] [IsDomain R
   unfold max_monomial
   simp_all
 
+/-- A polynomial and its nonzero scalar multiple has the same leading monomial.
+A nonzero-polynomial variant of `lm_smul_eq_lm`. -/
 lemma lm'_smul_eq_lm' {σ R : Type*} [DecidableEq σ] [CommSemiring R] [IsDomain R]
   (mo : MonomialOrder σ) (f : MvPolynomial σ R) (f_not_0 : f ≠ 0) (c : R) (c_not_0 : c ≠ 0) :
   leading_monomial' mo f f_not_0 = leading_monomial' mo (c • f) (smul_ne_zero c_not_0 f_not_0) := by
@@ -259,6 +268,8 @@ lemma lm'_smul_eq_lm' {σ R : Type*} [DecidableEq σ] [CommSemiring R] [IsDomain
   unfold max_monomial'
   simp_all
 
+/-- `g - c • f ≠ 0`, given that `f` and `g` are nonzero and the leading monomial of `g`
+precedes that of `f`. -/
 lemma sub_smul_ne_0 {σ R : Type*} [DecidableEq σ] [CommRing R] [IsDomain R]
   (mo : MonomialOrder σ) (f g : MvPolynomial σ R)
   (hf : f ≠ 0) (hg : g ≠ 0)
@@ -275,6 +286,8 @@ lemma sub_smul_ne_0 {σ R : Type*} [DecidableEq σ] [CommRing R] [IsDomain R]
     subst H
     simp_all
 
+/-- The leading monomials of `g` and `g - c • f` equal, given that `f` and `g` are
+nonzero and the leading monomial of `g` precedes that of `f` -/
 lemma lm_sub_smul_eq_lm {σ R : Type*} [DecidableEq σ] [CommRing R] [IsDomain R]
   (mo : MonomialOrder σ) (f g : MvPolynomial σ R)
   (hf : f ≠ 0) (hg : g ≠ 0)
@@ -366,6 +379,7 @@ def leading_coeff' {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   (mo : MonomialOrder σ) (f : MvPolynomial σ R) (f_not_0 : f ≠ 0) :=
   f.coeff (leading_monomial' mo f f_not_0)
 
+/-- The leading coefficient of any nonzero polynomial is not zero. -/
 lemma lc_not_zero {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   (mo : MonomialOrder σ) (f : MvPolynomial σ R) (f_not_0 : f ≠ 0) :
   leading_coeff' mo f f_not_0 ≠ 0 := by
@@ -384,7 +398,7 @@ def leading_monomials {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   (mo : MonomialOrder σ) (F : Set (MvPolynomial σ R)) : Set (σ →₀ ℕ) :=
   ((λ (f : MvPolynomial σ R) => (leading_monomial mo f).toFinset.toSet) '' F).sUnion
 
-def monomial_ideal {σ K : Type*} [DecidableEq σ] [Field K]
+def monomial_ideal {σ : Type*} (K : Type*) [DecidableEq σ] [Field K]
   (S : Set (σ →₀ ℕ)) : Ideal (MvPolynomial σ K) :=
   Ideal.span ((fun (s : σ →₀ ℕ) => MvPolynomial.monomial s (1 : K)) '' S)
 
@@ -902,3 +916,86 @@ lemma monset_sub_lms {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Fiel
           apply Finset.mem_of_max at hy1
           simp_all
         simp_all
+
+lemma mem_monmul_supp_iff {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K]
+  {μ ν : σ →₀ ℕ}
+  : μ ≤ ν ↔ ∃ f : MvPolynomial σ K, ν ∈ (f * (MvPolynomial.monomial μ) 1).support := by
+  constructor
+  · intro hμν
+    exists (MvPolynomial.monomial (ν - μ)) 1
+    simp_all [monomial_sub_add]
+  · intro ⟨f, hνf⟩
+    cases (em (f = 0)) with
+    | inl hf0 => simp_all
+    | inr hfn0 =>
+      simp [MvPolynomial.mem_support_iff] at hνf
+      simp [MvPolynomial.coeff_mul_monomial'] at hνf
+      exact hνf.1
+
+/-- A monomial `ν` is in a monomial ideal `⟨M⟩`,
+exactly when some basis element `μ` divides the monomial `ν`. -/
+lemma mon_mem_moni_iff {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (ν : σ →₀ ℕ) (M : Finset (σ →₀ ℕ))
+  : MvPolynomial.monomial ν 1 ∈ monomial_ideal K M ↔ ∃ μ ∈ M, μ ≤ ν := by
+  constructor
+  · -- (==>)
+    unfold monomial_ideal
+    unfold Ideal.span
+    -- Membership in a span ↔ sum of ring element multiple of basis elements
+    rw [Submodule.mem_span_iff_exists_finset_subset]
+    intro ⟨φ, S, hSM, hφS, hsumS⟩
+    -- `hsumS : ∑ a ∈ S, φ a • a = (MvPolynomial.monomial ν) 1`. Both side have the same support.
+    have ν_sum_supp : ν ∈ (∑ a ∈ S, φ a • a).support := by rw [hsumS, MvPolynomial.support_monomial]; simp
+    -- auxiliary steps to apply MvPolynomial.support_sum
+    let sum_fun (a : MvPolynomial σ K) := φ a • a
+    have : ∑ a ∈ S, φ a • a = ∑ a ∈ S, sum_fun a := by unfold sum_fun; rfl
+    rw [this] at ν_sum_supp
+    -- membership in the support of a sum → membership in the union of supports of summands
+    apply MvPolynomial.support_sum at ν_sum_supp
+    simp only [smul_eq_mul, Finset.mem_biUnion, sum_fun] at ν_sum_supp
+    let ⟨f, hfS, hνf⟩ := ν_sum_supp
+    apply hSM at hfS
+    simp at hfS
+    let ⟨μ, hμM, hμf⟩ := hfS
+    rw [← hμf] at hνf
+    -- Now we have membership of `ν` in the support of some polynomial multiple of `μ`.
+    -- Use 'μ' to show the result.
+    exists μ
+    constructor
+    · exact hμM
+    · rw [@mem_monmul_supp_iff σ K]
+      exists φ ((MvPolynomial.monomial μ) 1)
+    /-
+    let sum_supp_subs := @MvPolynomial.support_sum K σ _ _ _ S sum_fun
+    simp at sum_supp_subs
+    apply MvPolynomial.support_sum at ν_sum_supp
+    simp at hsumS
+    -/
+    -- intro hνM
+    /-
+    rw [Finsupp.mem_span_iff_linearCombination]
+    intro ⟨l, hMlν⟩
+    simp [Finsupp.linearCombination_apply_of_mem_supported (MvPolynomial σ K)] at hMlν
+    -/
+    /-
+    simp [Finsupp.linearCombination_apply (MvPolynomial σ K) l] at hMlν
+    have hl : l.support ⊆ M.map { toFun := λ s => (MvPolynomial.monomial s) (1 : K), inj' :=  }
+    rw [Finsupp.sum_of_support_subset l] at hMlν
+    -/
+  · -- (<==)
+    intro ⟨μ, hμ, hμν⟩
+    let δ := ν - μ
+    -- key step: `ν` is a product of `μ` and `ν - μ`
+    have ν_eq_μδ
+      : (MvPolynomial.monomial ν) (1 : K)
+      = (MvPolynomial.monomial μ) 1 * (MvPolynomial.monomial δ) 1 := by
+      simp_all only [MvPolynomial.monomial_mul, add_tsub_cancel_of_le, mul_one, δ]
+    rw [ν_eq_μδ, monomial_ideal]
+    -- Take a singleton subset `{μ}` of the basis
+    have μ_mem_basis : {(MvPolynomial.monomial μ) (1 : K)} ⊆ (fun s ↦ (MvPolynomial.monomial s) 1) '' ↑M := by
+      simp_all
+    apply Ideal.span_mono μ_mem_basis
+    -- Membership in an ideal generated by a singleton is equivalent to divisibility by the singleton element.
+    -- We are done, since the key step above shows the divisibility.
+    rw [Ideal.mem_span_singleton]
+    exists (MvPolynomial.monomial δ) 1

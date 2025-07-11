@@ -6,8 +6,8 @@ def is_groebner {σ K : Type*} [DecidableEq σ] [Field K] -- [DecidableEq K]
   (mo : MonomialOrder σ) (G : Finset (MvPolynomial σ K))
   (I : Ideal (MvPolynomial σ K)) /-(hI : I ≠ 0)-/ : Prop :=
   ↑G ⊆ I.carrier ∧
-  monomial_ideal (leading_monomials mo I.carrier) =
-  @monomial_ideal σ K _ _ (leading_monomials_fin mo G)
+  monomial_ideal K (leading_monomials mo I.carrier) =
+  monomial_ideal K (leading_monomials_fin mo G)
 
 noncomputable def S_pair {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (f g : MvPolynomial σ K) (hf : f ≠ 0) (hg : g ≠ 0)
@@ -28,6 +28,18 @@ def reduces_to_zero {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (f : MvPolynomial σ K) (G : Finset (MvPolynomial σ K)) :=
   ∃ (A : MvPolynomial σ K → MvPolynomial σ K),
     (f = ∑ g ∈ G, (A g) * g) ∧ ∀ g ∈ G, (A g) * g ≠ 0 → leading_monomial mo ((A g) * g) ≤ leading_monomial mo f
+
+def every_S_poly_red_0 {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G) :=
+  ∀ f1, (hf1 : f1 ∈ G) → ∀ f2, (hf2 : f2 ∈ G) →
+    f1 ≠ f2 → reduces_to_zero mo (S_poly mo f1 f2 (ne_of_mem_of_not_mem hf1 hG) (ne_of_mem_of_not_mem hf2 hG)) G
+
+theorem refined_buchberger {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G) :
+  is_groebner mo G (Ideal.span G) ↔ every_S_poly_red_0 mo G hG := by
+  sorry
+
+
 
 /-
 TODO:
