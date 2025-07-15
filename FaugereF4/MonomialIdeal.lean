@@ -429,6 +429,42 @@ lemma singleton_monset_eq_support {σ R : Type*} [DecidableEq σ] [CommSemiring 
   unfold monomial_set
   simp
 
+lemma monomial_set_union_distrib {σ R : Type*} [DecidableEq σ] [CommSemiring R] [DecidableEq R]
+  (F G : Finset (MvPolynomial σ R)) :
+  monomial_set (F ∪ G) = monomial_set F ∪ monomial_set G := by
+  unfold monomial_set
+  ext x
+  constructor
+  · intro hx
+    simp only [Finset.mem_biUnion] at hx
+    rcases hx with ⟨f, hf, hx⟩
+    rw [Finset.mem_union] at hf
+    simp only [Finset.mem_union, Finset.mem_biUnion]
+    cases hf with
+    | inl hfF =>
+      apply Or.inl
+      exists f
+    | inr hfG =>
+      apply Or.inr
+      exists f
+  · intro hx
+    simp only [Finset.mem_union, Finset.mem_biUnion]
+    simp only [Finset.mem_biUnion, Finset.mem_union] at hx
+    rcases hx with (⟨f, hfF, hx⟩ | ⟨g, hgG, hx⟩)
+    · exact ⟨f, Or.inl hfF, hx⟩
+    · exact ⟨g, Or.inr hgG, hx⟩
+
+lemma monomial_set_erase_zero {σ R : Type*} [DecidableEq σ] [CommSemiring R] [DecidableEq R]
+  (F : Finset (MvPolynomial σ R)) :
+  monomial_set (F.erase 0) = monomial_set F := by
+  unfold monomial_set
+  cases (em (0 ∈ F)) with
+  | inl zero_mem =>
+    conv_rhs => rw [← Finset.insert_erase zero_mem]
+    simp
+  | inr zero_not_mem =>
+    simp [zero_not_mem]
+
 /-- Shift a monomial‐exponent vector by `m`. -/
 noncomputable def add_mon {σ : Type*} (m : σ →₀ ℕ) : (σ →₀ ℕ) ↪ σ →₀ ℕ :=
   ⟨fun n => m + n, by unfold Function.Injective; simp⟩

@@ -76,12 +76,13 @@ noncomputable def max_lm_poly_choice {σ R : Type*} [DecidableEq σ] [CommSemiri
   }
 
 
-structure GEStruct (σ K : Type*) [DecidableEq σ] [Field K]
-  (mo : MonomialOrder σ) (V : Submodule K (MvPolynomial σ K)) where
+structure GEStruct (σ K : Type*) [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (M : Finset (σ →₀ ℕ)) (V : Submodule K (MvPolynomial σ K)) where
   SI : Finset (MvPolynomial σ K) -- input set of mvpoly's to process
   SO : Finset (MvPolynomial σ K) -- output set of processed mvpoly's
   zero_not_mem_SI : 0 ∉ SI
   zero_not_mem_SO : 0 ∉ SO
+  monset_fixed : monomial_set (SI ∪ SO) = M
   span_V : Submodule.span K (SI ∪ SO) = V
   in_lm_le_out_lm (fi) (hfi : fi ∈ SI) (fo) (hfo : fo ∈ SO) :
     mo.toSyn (leading_monomial' mo fi (ne_of_mem_of_not_mem hfi zero_not_mem_SI))
@@ -100,7 +101,52 @@ noncomputable def eliminate_lead_term {σ K : Type*} [DecidableEq σ] [Field K] 
   let lcp := p.coeff lmp
   let p1 := lcp⁻¹ • p
   S.image (λ f => f - (f.coeff lmp) • p1)
-  -- Finset.biUnion S (λ f => {f - (f.coeff lmp) • p1})
+
+lemma elim_pivot_monset_eq {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (S : Finset (MvPolynomial σ K))
+  (p : MvPolynomial σ K) (hp : p ≠ 0)
+  : monomial_set ((eliminate_lead_term mo S p hp) ∪ {p}) = monomial_set (S ∪ {p}) := by
+  simp [eliminate_lead_term, monomial_set]
+  ext μ
+  simp
+  constructor
+  · intro ⟨f, hpf, hμf⟩
+    cases hpf with
+    | inl hpf =>
+      let ⟨g, g_mem_S, pfg_eq⟩ := hpf
+      rw [sub_eq_iff_eq_add] at pfg_eq
+      cases (em (p.coeff μ = 0)) with
+      | inl pμ_eq_0 =>
+        have : ¬g.coeff μ = 0 := by
+          rw [pfg_eq]
+          simp [pμ_eq_0]
+          exact hμf
+        exists g
+        exact ⟨Or.inl g_mem_S, this⟩
+      | inr pμ_ne_0 =>
+        exists p
+        exact ⟨Or.inr rfl, pμ_ne_0⟩
+    | inr hpf =>
+      exists f
+      exact ⟨Or.inr hpf, hμf⟩
+  · intro ⟨g, hgSp, hμg⟩
+    cases hgSp with
+    | inl g_mem_S =>
+      cases (em (p.coeff μ = 0)) with
+      | inl pμ_eq_0 =>
+        exists g - g.coeff (leading_monomial' mo p hp) • (p.coeff (leading_monomial' mo p hp))⁻¹ • p
+        constructor
+        · apply Or.inl
+          exists g
+        · simp [pμ_eq_0]
+          exact hμg
+      | inr pμ_ne_0 =>
+        exists p
+        exact ⟨Or.inr rfl, pμ_ne_0⟩
+    | inr g_eq_p =>
+      subst g
+      exists p
+      exact ⟨Or.inr rfl, hμg⟩
 
 lemma elim_card_le {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (S : Finset (MvPolynomial σ K))
@@ -177,11 +223,9 @@ lemma smul_insert_span {K M : Type*} [Field K] [AddCommMonoid M] [Module K M]
       rw [← hc', smul_assoc]
   rw [this]
 
--- todo: step과 rec으로 쪼개기
-
 noncomputable def gaussian_elim_step {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
-  (mo : MonomialOrder σ) (V : Submodule K (MvPolynomial σ K))
-  (ges : GEStruct σ K mo V) (SI_nonempty : ges.SI.Nonempty) : GEStruct σ K mo V :=
+  (mo : MonomialOrder σ) (M : Finset (σ →₀ ℕ)) (V : Submodule K (MvPolynomial σ K))
+  (ges : GEStruct σ K mo M V) (SI_nonempty : ges.SI.Nonempty) : GEStruct σ K mo M V :=
   let pivot_spec := max_lm_poly_choice mo ges.SI SI_nonempty ges.zero_not_mem_SI
   let pivot := pivot_spec.choice
   let lm_pivot := leading_monomial' mo pivot pivot_spec.choice_not_zero
@@ -323,29 +367,35 @@ noncomputable def gaussian_elim_step {σ K : Type*} [DecidableEq σ] [Field K] [
       (a.coeff lm_pivot • (pivot.coeff lm_pivot)⁻¹)
     rw [← lm_ss_eq_lm_fo, lm_ss_eq_lm_a]
     exact lm_piv_lt_lm_a
-  /- -- separated into a lemma
-  have SI_card_decr : SI.card < ges.SI.card := by -- termination proof
-    have erase_pivot_decr : (ges.SI.erase pivot).card < ges.SI.card := by
-      apply Finset.card_lt_card
-      rw [Finset.ssubset_iff_exists_subset_erase]
-      exists pivot
-      exact ⟨pivot_spec.choice_mem, by simp⟩
-    have elim_SI_nonincr : SI0.card ≤ (ges.SI.erase pivot).card := by
-      unfold SI0
-      apply elim_card_le
-    have SI_erase_0_nonincr : SI.card ≤ SI0.card := by
-      unfold SI
-      apply Finset.card_erase_le
-    calc
-      SI.card ≤ SI0.card := SI_erase_0_nonincr
-      _ ≤ (ges.SI.erase pivot).card := elim_SI_nonincr
-      _ < ges.SI.card := erase_pivot_decr
-  -/
   {
     SI := SI
     SO := SO
     zero_not_mem_SI := zero_not_mem_SI
     zero_not_mem_SO := zero_not_mem_SO
+    monset_fixed := by
+      unfold SI SO SI0
+      conv_lhs =>
+        rw [← Finset.union_self {pivot_1}, ← Finset.union_assoc _ {pivot_1} {pivot_1},
+            Finset.union_comm (eliminate_lead_term mo ges.SO pivot pivot_spec.choice_not_zero ∪ {pivot_1}) {pivot_1},
+            ← Finset.union_assoc _ {pivot_1} _,
+            monomial_set_union_distrib, monomial_set_union_distrib, monomial_set_union_distrib]
+      have pivot_mem : pivot ∈ ges.SI := by
+        apply pivot_spec.choice_mem
+      conv_rhs =>
+        rw [← ges.monset_fixed, ← Finset.insert_erase pivot_mem,
+            Finset.insert_eq, Finset.union_comm {pivot} _, ← Finset.union_self {pivot},
+            ← Finset.union_assoc _ {pivot} {pivot}, Finset.union_assoc _ {pivot} ges.SO,
+            Finset.union_comm {pivot} ges.SO,
+            monomial_set_union_distrib,
+            ← elim_pivot_monset_eq mo (ges.SI.erase pivot) pivot pivot_spec.choice_not_zero,
+            ← elim_pivot_monset_eq mo ges.SO pivot pivot_spec.choice_not_zero,
+            monomial_set_union_distrib, monomial_set_union_distrib]
+      rw [monomial_set_erase_zero]
+      have piv1_piv_monset : monomial_set {pivot_1} = monomial_set {pivot} := by
+        unfold pivot_1
+        simp [singleton_monset_eq_support]
+        exact MvPolynomial.support_smul_eq (inv_ne_zero lc_pivot_ne_0) pivot
+      rw [piv1_piv_monset]
     span_V := by
       rw [← ges.span_V]
       apply Submodule.span_eq_span
@@ -461,65 +511,17 @@ noncomputable def gaussian_elim_step {σ K : Type*} [DecidableEq σ] [Field K] [
                 simp_all
     in_lm_le_out_lm := by -- cases for fo : pivot => pivot_spec.choice_max_lm | other => ges.in_lm_le_out_lm
       intro fi hfi fo hfo
-      -- rw [lm_coe_lm' mo fi (ne_of_mem_of_not_mem hfi zero_not_mem_SI)]
-      -- rw [lm_coe_lm' mo fo (ne_of_mem_of_not_mem hfo zero_not_mem_SO)]
-      -- simp
-      /-
-      let hfo_ := hfo
-      unfold SO at hfo_
-      simp at hfo_
-      -/
       cases em (fo = pivot_1) with
       | inl fo_piv =>
         subst fo_piv
         rw [lm_piv1_eq_lm_piv]
         exact lm_fi_lt_lm_piv fi hfi
       | inr fo_ne_piv =>
-        /-
-        unfold eliminate_lead_term at fo_ne_piv
-        simp at fo_ne_piv
-        let ⟨a, a_mem, ha⟩ := fo_ne_piv
-        -- rw [sub_eq_iff_eq_add] at ha
-        rw [← smul_assoc] at ha
-        let lm_piv_lt_lm_a := ges.in_lm_le_out_lm pivot pivot_spec.choice_mem a a_mem
-          -- rw [lm_coe_lm' mo pivot pivot_spec.choice_not_zero] at key
-          -- rw [lm_coe_lm' mo a (ne_of_mem_of_not_mem a_mem ges.zero_not_mem_SO)] at key
-          -- simp at key
-          -- exact key
-        let a_ss_piv_ne_0 := sub_smul_ne_0 mo pivot a
-          pivot_spec.choice_not_zero
-          (ne_of_mem_of_not_mem a_mem ges.zero_not_mem_SO)
-          lm_piv_lt_lm_a
-          (a.coeff lm_pivot • (pivot.coeff lm_pivot)⁻¹)
-        /-
-        have lm_ss_eq_lm_fo : leading_monomial' mo (a - (a.coeff lm_pivot • (pivot.coeff lm_pivot)⁻¹) • pivot) a_ss_piv_ne_0
-                            = leading_monomial' mo fo (ne_of_mem_of_not_mem hfo zero_not_mem_SO) := by
-          subst ha -- autogenerated by aesop; todo: replace the proof with lm'_eq_of_eq
-          simp_all only [Finset.mem_erase, ne_eq, not_true_eq_false, false_and, not_false_eq_true, smul_eq_mul,
-            pivot_1, lm_pivot, pivot, pivot_spec, SI, SI0]
-        -/
-        let lm_ss_eq_lm_fo := lm'_eq_of_eq mo (a - (a.coeff lm_pivot • (pivot.coeff lm_pivot)⁻¹) • pivot) fo ha a_ss_piv_ne_0
-        let lm_ss_eq_lm_a := lm_sub_smul_eq_lm mo pivot a
-          pivot_spec.choice_not_zero
-          (ne_of_mem_of_not_mem a_mem ges.zero_not_mem_SO)
-          lm_piv_lt_lm_a
-          (a.coeff lm_pivot • (pivot.coeff lm_pivot)⁻¹)
-        rw [← lm_ss_eq_lm_fo, lm_ss_eq_lm_a]
-        exact lt_trans (lm_fi_lt_lm_piv fi hfi) lm_piv_lt_lm_a
-        -/
         exact lt_trans
           (lm_fi_lt_lm_piv fi hfi)
           (lm_piv_lt_lm_fo_ne_piv fo hfo fo_ne_piv)
     out_lm_diff := by -- ges.in_lm_le_out_lm
       intro f hfo g hgo hfg_ne
-      -- rw [lm_coe_lm' mo f (ne_of_mem_of_not_mem hfo zero_not_mem_SO)]
-      -- rw [lm_coe_lm' mo g (ne_of_mem_of_not_mem hgo zero_not_mem_SO)]
-      /-
-      simp
-      let hfo_ := hfo
-      unfold SO at hfo_
-      simp at hfo_
-      -/
       cases em (f = pivot_1) with
       | inl f_piv =>
         simp
@@ -625,9 +627,9 @@ noncomputable def gaussian_elim_step {σ K : Type*} [DecidableEq σ] [Field K] [
   }
 
 lemma ges_SI_card_decr  {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
-  (mo : MonomialOrder σ) (V : Submodule K (MvPolynomial σ K))
-  (ges : GEStruct σ K mo V) (SI_nonempty : ges.SI.Nonempty)
-  : (gaussian_elim_step mo V ges SI_nonempty).SI.card < ges.SI.card := by -- termination proof
+  (mo : MonomialOrder σ) (M : Finset (σ →₀ ℕ)) (V : Submodule K (MvPolynomial σ K))
+  (ges : GEStruct σ K mo M V) (SI_nonempty : ges.SI.Nonempty)
+  : (gaussian_elim_step mo M V ges SI_nonempty).SI.card < ges.SI.card := by -- termination proof
   let pivot_spec := max_lm_poly_choice mo ges.SI SI_nonempty ges.zero_not_mem_SI
   let pivot := pivot_spec.choice
   let SI0 := (eliminate_lead_term mo (ges.SI.erase pivot) pivot pivot_spec.choice_not_zero)
@@ -649,17 +651,22 @@ lemma ges_SI_card_decr  {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K
     _ < ges.SI.card := erase_pivot_decr
 
 noncomputable def gaussian_elim_rec {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
-  (mo : MonomialOrder σ) (V : Submodule K (MvPolynomial σ K))
-  (ges : GEStruct σ K mo V) : GEStruct σ K mo V :=
+  (mo : MonomialOrder σ) (M : Finset (σ →₀ ℕ)) (V : Submodule K (MvPolynomial σ K))
+  (ges : GEStruct σ K mo M V) : GEStruct σ K mo M V :=
   if SI_nonempty : ges.SI.Nonempty
     then
-      gaussian_elim_rec mo V (gaussian_elim_step mo V ges SI_nonempty)
+      gaussian_elim_rec mo M V (gaussian_elim_step mo M V ges SI_nonempty)
     else
       {
         SI := ∅
         SO := ges.SO
         zero_not_mem_SI := by simp
         zero_not_mem_SO := ges.zero_not_mem_SO
+        monset_fixed := by
+          simp at SI_nonempty
+          let prev_monset_fixed := ges.monset_fixed
+          simp [SI_nonempty] at prev_monset_fixed
+          simp [prev_monset_fixed]
         span_V := by
           have prev_span_V : Submodule.span K (↑ges.SI ∪ ↑ges.SO) = V := ges.span_V
           simp at SI_nonempty
@@ -676,12 +683,15 @@ decreasing_by apply ges_SI_card_decr
 
 noncomputable def ges_init {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (input : Finset (MvPolynomial σ K))
-  : GEStruct σ K mo (Submodule.span K input) :=
+  : GEStruct σ K mo (monomial_set input) (Submodule.span K input) :=
   {
     SI := input.erase 0
     SO := ∅
     zero_not_mem_SI := by simp
     zero_not_mem_SO := by simp
+    monset_fixed := by
+      simp
+      apply monomial_set_erase_zero
     span_V := by simp
     in_lm_le_out_lm := by
       intro _ _ fo hfo
@@ -696,12 +706,12 @@ noncomputable def ges_init {σ K : Type*} [DecidableEq σ] [Field K] [DecidableE
 
 noncomputable def gaussian_elim {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (input : Finset (MvPolynomial σ K))
-  : GEStruct σ K mo (Submodule.span K input) :=
-  gaussian_elim_rec mo (Submodule.span K input) (ges_init mo input)
+  : GEStruct σ K mo (monomial_set input) (Submodule.span K input) :=
+  gaussian_elim_rec mo (monomial_set input) (Submodule.span K input) (ges_init mo input)
 
-theorem gaussian_elim_rec_SI_empty {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
-  (mo : MonomialOrder σ) (V : Submodule K (MvPolynomial σ K)) :
-  ∀ n : ℕ, ∀ (ges : GEStruct σ K mo V), ges.SI.card = n → (gaussian_elim_rec mo V ges).SI = ∅ := by
+lemma gaussian_elim_rec_SI_empty {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (M : Finset (σ →₀ ℕ)) (V : Submodule K (MvPolynomial σ K)) :
+  ∀ n : ℕ, ∀ (ges : GEStruct σ K mo M V), ges.SI.card = n → (gaussian_elim_rec mo M V ges).SI = ∅ := by
   intro n
   induction n using Nat.strong_induction_on with
   | h n ih =>
@@ -711,16 +721,17 @@ theorem gaussian_elim_rec_SI_empty {σ K : Type*} [DecidableEq σ] [Field K] [De
     · -- Case: SI.Nonempty
       apply ih
       · rw [← ges_SI_card_eq_n]
-        apply ges_SI_card_decr _ _ _ SI_nonempty
+        apply ges_SI_card_decr _ _ _ _ SI_nonempty
       · rfl
     · -- Case: ¬SI.Nonempty
       simp
 
-theorem gaussian_elim_SI_empty {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
+lemma gaussian_elim_SI_empty {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (input : Finset (MvPolynomial σ K)) :
   (gaussian_elim mo input).SI = ∅ := by
   unfold gaussian_elim
   exact gaussian_elim_rec_SI_empty mo
+    (monomial_set input)
     (Submodule.span K ↑input)
     ((ges_init mo input).SI.card)
     (ges_init mo input)
