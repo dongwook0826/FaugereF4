@@ -36,10 +36,14 @@ in each step that (2) holds for monomials in done_mons.
 structure SymbProcStruct
   (σ : Type*) (K : Type*)
   [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
-  (mo : MonomialOrder σ) (G : Finset (MvPolynomial σ K)) where
+  (mo : MonomialOrder σ) (G H0 : Finset (MvPolynomial σ K)) where
   /-- Increasing set of polynomials, to which several polynomials of the form $x^αg$
   for $g ∈ G$ would be inserted. -/
   H : Finset (MvPolynomial σ K)
+  /-- H contains the starting set H0. -/
+  H0_sub_H : H0 ⊆ H
+  /-- Every element in H is a monomial multiple of some element in G. -/
+  H_sub_monmul_G : ↑H ⊆ {mg | ∃ g ∈ G, ∃ α : σ →₀ ℕ, ∃ c : K, mg = g * MvPolynomial.monomial α c}
   /-- This H is always contained in the span of G. -/
   H_sub_ideal_G : ↑H ⊆ (Ideal.span G : Ideal (MvPolynomial σ K)).carrier
   /-- H doesn't have zero as an element -/
@@ -68,18 +72,17 @@ structure SymbProcStruct
   div_then_cont_mult :
     ∀ m ∈ done_mons,
       (¬∃ g ∈ G, leading_monomial mo g ≤ m) ∨
-      (∃ g ∈ G, ∃ α : σ →₀ ℕ, ∃ c : K,
-        c ≠ 0 ∧
-        (MvPolynomial.monomial α c) * g ∈ H ∧
-        leading_monomial mo ((MvPolynomial.monomial α c) * g) = m)
+      (∃ g ∈ G, ∃ α : σ →₀ ℕ,
+        (MvPolynomial.monomial α 1) * g ∈ H ∧
+        leading_monomial mo ((MvPolynomial.monomial α 1) * g) = m)
 
 noncomputable def symbolic_preprocess_step {σ K : Type*}
   [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ)
-  (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G)
-  (sps : SymbProcStruct σ K mo G)
+  (G H0 : Finset (MvPolynomial σ K)) (hG : 0 ∉ G)
+  (sps : SymbProcStruct σ K mo G H0)
   (hmons : ¬sps.done_mons = monomial_set sps.H)
-  : SymbProcStruct σ K mo G :=
+  : SymbProcStruct σ K mo G H0 :=
   let mon_H := monomial_set sps.H
   have monset_nonempty : (Finset.map mo.toSyn.toEmbedding (mon_H \ sps.done_mons)).Nonempty := by
     have : sps.done_mons ⊂ mon_H := by
@@ -235,6 +238,18 @@ noncomputable def symbolic_preprocess_step {σ K : Type*}
       let H := {mulf} ∪ sps.H
       {
         H := H
+        H0_sub_H := by
+          unfold H
+          intro h h_mem_H0
+          rw [Finset.mem_union]
+          exact Or.inr (sps.H0_sub_H h_mem_H0)
+        H_sub_monmul_G := by
+          unfold H
+          simp only [Finset.coe_union, Set.union_subset_iff]
+          constructor
+          · simp
+            exists f, f_mem_G, b - lmf, 1
+          · exact sps.H_sub_monmul_G
         H_sub_ideal_G := by
           unfold H
           simp only [Finset.coe_union, Set.union_subset_iff]
@@ -324,15 +339,12 @@ noncomputable def symbolic_preprocess_step {σ K : Type*}
             · exact f_mem_G
             · exists b - lmf
               subst m
-              exists 1
               constructor
-              · simp
-              · constructor
-                · simp [H, mulf, mul_comm]
-                · unfold mulf at lm_mulf
-                  conv_lhs => rw [mul_comm]
-                  conv_rhs => rw [← lm_mulf]
-                  apply lm_coe_lm'
+              · simp [H, mulf, mul_comm]
+              · unfold mulf at lm_mulf
+                conv_lhs => rw [mul_comm]
+                conv_rhs => rw [← lm_mulf]
+                apply lm_coe_lm'
           · have : m ∈ sps.done_mons := by
               unfold done_mons at m_done
               simp_all
@@ -345,8 +357,8 @@ noncomputable def symbolic_preprocess_step {σ K : Type*}
               exact h_div_able g g_mem_G
             | inr h_cont_mult =>
               apply Or.inr
-              let ⟨g, g_mem_G, α, c, c_ne_0, g_mmul_mem_sps_H, lm_g_mmul_eq_m⟩ := h_cont_mult
-              exists g, g_mem_G, α, c, c_ne_0
+              let ⟨g, g_mem_G, α, g_mmul_mem_sps_H, lm_g_mmul_eq_m⟩ := h_cont_mult
+              exists g, g_mem_G, α
               constructor
               · unfold H
                 apply Finset.mem_union_right
@@ -356,6 +368,8 @@ noncomputable def symbolic_preprocess_step {σ K : Type*}
     else
       {
         H := sps.H
+        H0_sub_H := sps.H0_sub_H
+        H_sub_monmul_G := sps.H_sub_monmul_G
         H_sub_ideal_G := sps.H_sub_ideal_G
         zero_not_mem_H := sps.zero_not_mem_H
         done_mons := done_mons
@@ -388,10 +402,10 @@ noncomputable def symbolic_preprocess_step {σ K : Type*}
 lemma sps_last_mon_decr {σ K : Type*}
   [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ)
-  (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G)
-  (sps : SymbProcStruct σ K mo G)
+  (G H0 : Finset (MvPolynomial σ K)) (hG : 0 ∉ G)
+  (sps : SymbProcStruct σ K mo G H0)
   (hmons : ¬sps.done_mons = monomial_set sps.H)
-  : (symbolic_preprocess_step mo G hG sps hmons).last_mon < sps.last_mon := by
+  : (symbolic_preprocess_step mo G H0 hG sps hmons).last_mon < sps.last_mon := by
   let mon_H := monomial_set sps.H
   have monset_nonempty : (Finset.map mo.toSyn.toEmbedding (mon_H \ sps.done_mons)).Nonempty := by
     have : sps.done_mons ⊂ mon_H := by
@@ -461,15 +475,15 @@ lemma sps_last_mon_decr {σ K : Type*}
 noncomputable def symbolic_preprocess_rec {σ K : Type*}
   [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ)
-  (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G)
-  (sps : SymbProcStruct σ K mo G)
-  : SymbProcStruct σ K mo G :=
+  (G H0 : Finset (MvPolynomial σ K)) (hG : 0 ∉ G)
+  (sps : SymbProcStruct σ K mo G H0)
+  : SymbProcStruct σ K mo G H0 :=
   let mon_H := monomial_set sps.H
   if hmons : sps.done_mons = mon_H
     then -- no more monomials to be considered
       sps
     else -- one or more monomials are left to be considered
-      symbolic_preprocess_rec mo G hG (symbolic_preprocess_step mo G hG sps hmons)
+      symbolic_preprocess_rec mo G H0 hG (symbolic_preprocess_step mo G H0 hG sps hmons)
 termination_by sps.last_mon
 decreasing_by
   unfold WellFoundedRelation.rel withtop_mo_syn_wf -- WellFoundedLT.toWellFoundedRelation
@@ -501,12 +515,26 @@ f*~~에 의해 새로 mon_H에 들어오는 mon들은 b를 제외하면 모두 b
 def sps_init {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ)
   (G : Finset (MvPolynomial σ K))
-  (H : Finset (MvPolynomial σ K)) (hH : 0 ∉ H)
-  (hGH : ↑H ⊆ (Ideal.span G : Ideal (MvPolynomial σ K)).carrier) : SymbProcStruct σ K mo G :=
+  (H0 : Finset (MvPolynomial σ K)) (hH0 : 0 ∉ H0)
+  (hGH0 : ↑H0 ⊆ {mg | ∃ g ∈ G, ∃ α : σ →₀ ℕ, ∃ c : K, mg = g * MvPolynomial.monomial α c})
+  : SymbProcStruct σ K mo G H0 :=
+  -- (hGH : ↑H ⊆ (Ideal.span G : Ideal (MvPolynomial σ K)).carrier) : SymbProcStruct σ K mo G :=
   {
-    H := H
-    H_sub_ideal_G := hGH
-    zero_not_mem_H := hH
+    H := H0
+    H0_sub_H := by rfl
+    H_sub_monmul_G := hGH0
+    H_sub_ideal_G := by
+      intro h hhH0
+      apply hGH0 at hhH0
+      simp at hhH0
+      rcases hhH0 with ⟨g, hgG, α, c, hlgαc⟩
+      rw [hlgαc]
+      have : Ideal.span {g} ≤ Ideal.span G := by
+        apply Ideal.span_mono
+        simp [hgG]
+      apply this
+      simp [Ideal.mem_span_singleton]
+    zero_not_mem_H := hH0
     done_mons := ∅
     done_sub_H := by simp
     last_mon := ⊤
@@ -518,18 +546,19 @@ def sps_init {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K] [De
 noncomputable def symbolic_preprocess {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ)
   (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G)
-  (H : Finset (MvPolynomial σ K)) (hH : 0 ∉ H)
-  (hGH : ↑H ⊆ (Ideal.span G : Ideal (MvPolynomial σ K)).carrier) : SymbProcStruct σ K mo G :=
-  symbolic_preprocess_rec mo G hG (sps_init mo G H hH hGH)
+  (H0 : Finset (MvPolynomial σ K)) (hH0 : 0 ∉ H0)
+  (hGH0 : ↑H0 ⊆ {mg | ∃ g ∈ G, ∃ α : σ →₀ ℕ, ∃ c : K, mg = g * MvPolynomial.monomial α c})
+  : SymbProcStruct σ K mo G H0 :=
+  symbolic_preprocess_rec mo G H0 hG (sps_init mo G H0 hH0 hGH0)
 
 lemma symbolic_preprocess_rec_done_mons {σ K : Type*}
   [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ)
-  (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G)
+  (G H0 : Finset (MvPolynomial σ K)) (hG : 0 ∉ G)
   (last_mon : WithTop mo.syn)
-  : ∀ sps : SymbProcStruct σ K mo G,
+  : ∀ sps : SymbProcStruct σ K mo G H0,
     sps.last_mon = last_mon →
-    let sps' := symbolic_preprocess_rec mo G hG sps
+    let sps' := symbolic_preprocess_rec mo G H0 hG sps
     sps'.done_mons = monomial_set sps'.H := by
   induction last_mon using WellFounded.induction (withtop_mo_syn_wf mo).wf with
   | h μ IH =>
@@ -542,12 +571,12 @@ lemma symbolic_preprocess_rec_done_mons {σ K : Type*}
       exact mons_eq
     | inr mons_ne =>
       subst μ
-      let sps' := symbolic_preprocess_step mo G hG sps mons_ne
+      let sps' := symbolic_preprocess_step mo G H0 hG sps mons_ne
       have lm'_lt_lm : sps'.last_mon < sps.last_mon := by
         apply sps_last_mon_decr
       let IH' := IH sps'.last_mon lm'_lt_lm sps' (by rfl)
       simp at IH'
-      have sp_idem : symbolic_preprocess_rec mo G hG sps' = symbolic_preprocess_rec mo G hG sps := by
+      have sp_idem : symbolic_preprocess_rec mo G H0 hG sps' = symbolic_preprocess_rec mo G H0 hG sps := by
         unfold sps'
         conv_rhs => unfold symbolic_preprocess_rec
         simp only [right_eq_dite_iff]
@@ -561,23 +590,411 @@ lemma symbolic_preprocess_done_mons {σ K : Type*}
   [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ)
   (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G)
-  (H : Finset (MvPolynomial σ K)) (hH : 0 ∉ H)
-  (hGH : ↑H ⊆ (Ideal.span G : Ideal (MvPolynomial σ K)).carrier)
-  : let sps := symbolic_preprocess mo G hG H hH hGH
+  (H0 : Finset (MvPolynomial σ K)) (hH0 : 0 ∉ H0)
+  (hGH0 : ↑H0 ⊆ {mg | ∃ g ∈ G, ∃ α : σ →₀ ℕ, ∃ c : K, mg = g * MvPolynomial.monomial α c})
+  : let sps := symbolic_preprocess mo G hG H0 hH0 hGH0
     sps.done_mons = monomial_set sps.H := by
   simp [symbolic_preprocess]
-  exact symbolic_preprocess_rec_done_mons mo G hG ⊤ (sps_init mo G H hH hGH) (by rfl)
+  exact symbolic_preprocess_rec_done_mons mo G H0 hG ⊤ (sps_init mo G H0 hH0 hGH0) (by rfl)
 
+/-
+lemma ge_symb_proc_red_0_induction {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ)
+  (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G)
+  (L : Finset (MvPolynomial σ K)) (hL : 0 ∉ L)
+  (hGL : ↑L ⊆ {mg | ∃ g ∈ G, ∃ α : σ →₀ ℕ, ∃ c : K, mg = g * MvPolynomial.monomial α c})
+  : have hGLi : ↑L ⊆ (Ideal.span G : Ideal (MvPolynomial σ K)).carrier := by
+      intro l hlL
+      apply hGL at hlL
+      simp at hlL
+      rcases hlL with ⟨g, hgG, α, c, hlgαc⟩
+      rw [hlgαc]
+      have : Ideal.span {g} ≤ Ideal.span G := by
+        apply Ideal.span_mono
+        simp [hgG]
+      apply this
+      simp [Ideal.mem_span_singleton]
+    let sp_L := symbolic_preprocess mo G hG L hL hGLi
+    let ge_L' := gaussian_elim mo sp_L.H
+    let N := ge_L'.SO
+    let N' := N.filter (λ n => ∀ l ∈ sp_L.H, ¬leading_monomial mo l ≤ leading_monomial mo n)
+    ∀ μ' : mo.syn, ∀ n,
+      (n_mem_N : n ∈ N) →
+      have n_ne_0 : n ≠ 0 := ne_of_mem_of_not_mem n_mem_N ge_L'.zero_not_mem_SO
+      leading_monomial' mo n n_ne_0 = mo.toSyn.invFun μ'
+      → reduces_to_zero mo n n_ne_0 (G ∪ N') := by
+  intro hGLi sp_L ge_L' N N' μ'
+  -- let μ := mo.toSyn.invFun μ'
+  induction μ' using WellFounded.induction (@wellFounded_lt _ _ mo.wf) with
+  | h μ'_ IH =>
+    intro n n_mem_N n_ne_0 lmn_eq_μ_
+    unfold reduces_to_zero
+    cases em (n ∈ N') with
+    | inl n_mem_N' =>
+      let A : MvPolynomial σ K → MvPolynomial σ K := λ f => if f = n then 1 else 0
+      exists A
+      subst A
+      simp
+      constructor
+      · intro _ n_not_mem_N'
+        by_contra _
+        exact n_not_mem_N' n_mem_N'
+      · intro g g_mem_basis ⟨g_eq_n, g_ne_0⟩
+        subst g
+        simp
+    | inr n_not_mem_N' =>
+      simp [N', n_mem_N] at n_not_mem_N'
+      rcases n_not_mem_N' with ⟨l', l'_mem_L', lml'_le_lmn⟩
+      have L'_key := sp_L.div_then_cont_mult
+
+      sorry
+
+lemma ge_symb_proc_red_0 {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ)
+  (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G)
+  (L : Finset (MvPolynomial σ K)) (hL : 0 ∉ L)
+  (hGL : ↑L ⊆ {mg | ∃ g ∈ G, ∃ α : σ →₀ ℕ, ∃ c : K, mg = g * MvPolynomial.monomial α c})
+  : have hGLi : ↑L ⊆ (Ideal.span G : Ideal (MvPolynomial σ K)).carrier := by
+      intro l hlL
+      apply hGL at hlL
+      simp at hlL
+      rcases hlL with ⟨g, hgG, α, c, hlgαc⟩
+      rw [hlgαc]
+      have : Ideal.span {g} ≤ Ideal.span G := by
+        apply Ideal.span_mono
+        simp [hgG]
+      apply this
+      simp [Ideal.mem_span_singleton]
+    let sp_L := symbolic_preprocess mo G hG L hL hGLi
+    let ge_L' := gaussian_elim mo sp_L.H
+    let N := ge_L'.SO
+    let N' := N.filter (λ n => ∀ l ∈ sp_L.H, ¬leading_monomial mo l ≤ leading_monomial mo n)
+    ∀ n, (n_mem_N : n ∈ N) → reduces_to_zero mo n (ne_of_mem_of_not_mem n_mem_N ge_L'.zero_not_mem_SO) (G ∪ N') := by
+  intro hGLi sp_L ge_L' N N' n n_mem_N
+  have n_ne_0 : n ≠ 0 := ne_of_mem_of_not_mem n_mem_N ge_L'.zero_not_mem_SO
+  exact ge_symb_proc_red_0_induction mo G hG L hL hGL (mo.toSyn (leading_monomial' mo n n_ne_0)) n n_mem_N (by simp)
+-/
+
+lemma span_ge_symb_proc_red_0_induction {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ)
+  (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G)
+  (L : Finset (MvPolynomial σ K)) (hL : 0 ∉ L)
+  (hGL : ↑L ⊆ {mg | ∃ g ∈ G, ∃ α : σ →₀ ℕ, ∃ c : K, mg = g * MvPolynomial.monomial α c})
+  : let sp_L := symbolic_preprocess mo G hG L hL hGL
+    let ge_L' := gaussian_elim mo sp_L.H
+    let N := ge_L'.SO
+    let N' := N.filter (λ n => ∀ l ∈ sp_L.H, ¬leading_monomial mo l ≤ leading_monomial mo n)
+    let V : Submodule K (MvPolynomial σ K) := Submodule.span K sp_L.H
+    ∀ μ' : mo.syn, ∀ f ∈ V,
+      (f_ne_0 : f ≠ 0) →
+      leading_monomial' mo f f_ne_0 = mo.toSyn.invFun μ' →
+      reduces_to_zero mo f f_ne_0 (G ∪ N') := by
+  intro /-hGLi-/ sp_L ge_L' N N' V μ'
+  -- unfold reduces_to_zero
+  induction μ' using WellFounded.induction (@wellFounded_lt _ _ mo.wf) with
+  | h μ'_ IH =>
+    intro f f_mem_V f_ne_0 lmf_eq_μ
+    unfold V at f_mem_V
+    rw [← ge_L'.span_V] at f_mem_V
+    have : ge_L'.SI = ∅ := gaussian_elim_SI_empty mo sp_L.H
+    simp [this] at f_mem_V
+    let f_mem_V_ := f_mem_V
+    apply mem_span_ge_exists_same_lm_mem mo sp_L.H at f_mem_V_
+    rcases f_mem_V_ f_ne_0 with ⟨n, hn, lmf_eq_lmn⟩
+    have n_ne_0 : n ≠ 0 := ne_of_mem_of_not_mem hn ge_L'.zero_not_mem_SO
+    let f' := f - f.coeff (leading_monomial' mo n n_ne_0) • n
+    have f'_mem_V : f' ∈ V := by
+      have f_n_subset_V : {f, n} ⊆ V.carrier := by
+        rw [Set.pair_subset_iff]
+        unfold V
+        rw [← ge_L'.span_V, gaussian_elim_SI_empty mo sp_L.H]
+        simp
+        constructor
+        · exact f_mem_V
+        · unfold ge_L'
+          apply Submodule.subset_span
+          exact hn
+      unfold f'
+      apply @Submodule.span_mono K at f_n_subset_V
+      unfold V at f_n_subset_V
+      conv_rhs at f_n_subset_V => rw [Submodule.carrier_eq_coe, Submodule.span_span]
+      apply f_n_subset_V
+      rw [Submodule.mem_span_pair]
+      exists 1, -f.coeff (leading_monomial' mo n n_ne_0)
+      simp
+      ring
+    have f'_eq_0_or_lmf'_lt_lmf (f'_ne_0 : f' ≠ 0)
+      : mo.toSyn (leading_monomial' mo f' f'_ne_0) < mo.toSyn (leading_monomial' mo f f_ne_0) := by
+      conv_lhs => unfold leading_monomial' max_monomial'
+      simp only [AddEquiv.toEquiv_eq_coe, Equiv.invFun_as_coe, AddEquiv.coe_toEquiv_symm,
+        AddEquiv.apply_symm_apply, Finset.max'_lt_iff, Finset.mem_map_equiv]
+      intro α' α_supp_f'
+      apply lt_of_le_of_ne
+      · unfold f' at α_supp_f'
+        rw [sub_eq_add_neg] at α_supp_f'
+        apply MvPolynomial.support_add at α_supp_f'
+        rw [Finset.mem_union] at α_supp_f'
+        cases α_supp_f' with
+        | inl α_supp_f =>
+          unfold leading_monomial' max_monomial'
+          simp
+          apply Finset.le_max'
+          simp_all only [AddEquiv.toEquiv_eq_coe, Equiv.invFun_as_coe,
+            AddEquiv.coe_toEquiv_symm, AddEquiv.apply_symm_apply, Finset.mem_map_equiv]
+        | inr α_supp_n =>
+          rw [← neg_smul (f.coeff (leading_monomial' mo n n_ne_0)) n] at α_supp_n
+          apply MvPolynomial.support_smul at α_supp_n
+          rw [lmf_eq_lmn]
+          unfold leading_monomial' max_monomial'
+          simp
+          apply Finset.le_max'
+          simp_all only [AddEquiv.toEquiv_eq_coe, Equiv.invFun_as_coe,
+            AddEquiv.coe_toEquiv_symm, AddEquiv.apply_symm_apply, Finset.mem_map_equiv]
+      · simp [f'] at α_supp_f'
+        contrapose α_supp_f'
+        simp at α_supp_f'
+        subst α'
+        simp [sub_eq_zero]
+        conv_rhs => rw [lmf_eq_lmn]
+        have lcn_eq_1 := ge_L'.out_lc_one n hn
+        unfold leading_coeff' at lcn_eq_1
+        simp [lcn_eq_1, lmf_eq_lmn]
+    rw [← AddEquiv.apply_eq_iff_eq mo.toSyn] at lmf_eq_μ
+    simp at lmf_eq_μ
+    subst μ'_
+    cases em (n ∈ N') with
+    | inl n_mem_N' =>
+      cases em (f' = 0) with
+      | inl f'_eq_0 =>
+        subst f'
+        rw [sub_eq_zero] at f'_eq_0
+        let lmn := leading_monomial' mo n n_ne_0
+        let cf := f.coeff lmn
+        let A : MvPolynomial σ K → MvPolynomial σ K := λ x => if x = n then MvPolynomial.C cf else 0
+        exists A
+        subst A
+        simp [Or.inr n_mem_N']
+        constructor
+        · rw [f'_eq_0]
+          apply MvPolynomial.smul_eq_C_mul
+        · intro g g_mem_basis' ⟨g_eq_n, cf_ne_0, g_ne_0⟩
+          subst g
+          simp
+          apply le_of_eq
+          rw [AddEquiv.apply_eq_iff_eq]
+          apply lm'_eq_of_eq mo (MvPolynomial.C cf * n) f
+          rw [f'_eq_0]
+          rw [MvPolynomial.smul_eq_C_mul n cf]
+      | inr f'_ne_0 =>
+        have IH' := IH _ (f'_eq_0_or_lmf'_lt_lmf f'_ne_0) f' f'_mem_V f'_ne_0 (by simp)
+        -- rcases IH' with ⟨A', f'_sum_A', A'_summand_lm_le_lmf'⟩
+        have key :=
+          mul_basis_add_red_0 mo (G ∪ N')
+            n (by simp; exact Or.inr n_mem_N') n_ne_0
+            f' f'_ne_0 IH'
+            0 (f.coeff (leading_monomial' mo n n_ne_0)) (by rw [← lmf_eq_lmn]; apply lc_not_zero)
+            (by
+              simp
+              rw [← lm'_eq_of_eq mo
+                ((f.coeff (leading_monomial' mo n n_ne_0)) • n)
+                (MvPolynomial.C (f.coeff (leading_monomial' mo n n_ne_0)) * n)
+                (MvPolynomial.smul_eq_C_mul n _)
+                (by
+                  apply smul_ne_zero
+                  · rw [← lmf_eq_lmn]
+                    apply lc_not_zero
+                  · exact n_ne_0)]
+              rw [← lm'_smul_eq_lm' mo n n_ne_0 _ (by rw [← lmf_eq_lmn]; apply lc_not_zero)]
+              rw [← lmf_eq_lmn]
+              exact f'_eq_0_or_lmf'_lt_lmf f'_ne_0)
+        simp at key
+        have : f = f' + MvPolynomial.C (f.coeff (leading_monomial' mo n n_ne_0)) * n := by
+          simp [f', MvPolynomial.smul_eq_C_mul]
+        have key' := red_0_of_eq mo f _ this f_ne_0 (G ∪ N')
+        exact key'.mpr key
+    | inr n_not_mem_N' =>
+      simp [N'] at n_not_mem_N'
+      rcases n_not_mem_N' hn with ⟨l, l_mem_L', lml_le_lmn⟩
+      have l_ne_0 : l ≠ 0 := ne_of_mem_of_not_mem l_mem_L' sp_L.zero_not_mem_H
+      have key := sp_L.div_then_cont_mult
+      have lmn_mem_monset_L' : leading_monomial' mo n n_ne_0 ∈ sp_L.done_mons := by
+        rw [symbolic_preprocess_done_mons mo G hG L hL hGL]
+        rw [← ge_L'.monset_fixed, gaussian_elim_SI_empty mo sp_L.H]
+        simp
+        unfold monomial_set
+        rw [Finset.mem_biUnion]
+        exists n
+        exact ⟨hn, lm'_mem mo n n_ne_0⟩
+      have key := key _ lmn_mem_monset_L'
+      have l_eq_g_monmul := sp_L.H_sub_monmul_G l_mem_L'
+      simp at l_eq_g_monmul
+      rcases l_eq_g_monmul with ⟨g, g_mem_G, α, c, hlgαc⟩
+      have g_ne_0 : g ≠ 0 := ne_of_mem_of_not_mem g_mem_G hG
+      have c_ne_0 : c ≠ 0 := by
+        by_contra c_eq_0
+        simp [c_eq_0] at hlgαc
+        exact l_ne_0 hlgαc
+      have lmg_le_lml : leading_monomial mo g ≤ leading_monomial mo l := by
+        simp [lm_coe_lm' mo g g_ne_0, lm_coe_lm' mo l l_ne_0]
+        rw [lm'_eq_of_eq mo l _ hlgαc l_ne_0]
+        rw [lm'_monmul_commute mo g g_ne_0 α c c_ne_0]
+        simp only [le_add_iff_nonneg_right, zero_le]
+      rw [← imp_iff_not_or, ← lm_coe_lm' mo n n_ne_0] at key
+      have key := key ⟨g, g_mem_G, le_trans lmg_le_lml lml_le_lmn⟩
+      rcases key with ⟨g, g_mem_G, α, αg_mem_L', lmαg_eq_lmn⟩
+      have g_ne_0 : g ≠ 0 := ne_of_mem_of_not_mem g_mem_G hG
+      have αg_ne_0 : (MvPolynomial.monomial α) 1 * g ≠ 0 := ne_of_mem_of_not_mem αg_mem_L' sp_L.zero_not_mem_H
+      simp [lm_coe_lm' mo _ αg_ne_0, lm_coe_lm' mo n n_ne_0] at lmαg_eq_lmn
+      let f'' := f - (MvPolynomial.monomial α) (f.coeff (leading_monomial' mo f f_ne_0) * (g.coeff (leading_monomial' mo g g_ne_0))⁻¹) * g
+      have f''_mem_V : f'' ∈ V := by
+        unfold f''
+        rw [
+          ← mul_one (f.coeff (leading_monomial' mo f f_ne_0) * (g.coeff (leading_monomial' mo g g_ne_0))⁻¹),
+          ← smul_eq_mul (f.coeff (leading_monomial' mo f f_ne_0) * (g.coeff (leading_monomial' mo g g_ne_0))⁻¹) 1,
+          ← MvPolynomial.smul_monomial (f.coeff (leading_monomial' mo f f_ne_0) * (g.coeff (leading_monomial' mo g g_ne_0))⁻¹),
+          smul_mul_assoc
+        ]
+        have αg_mem_V := (@Submodule.subset_span K (MvPolynomial σ K) _ _ _ sp_L.H) αg_mem_L'
+        rw [← ge_L'.span_V] at αg_mem_V
+        simp [ge_L', gaussian_elim_SI_empty mo sp_L.H] at αg_mem_V
+        have f_αg_subset_V : {f, (MvPolynomial.monomial α) 1 * g} ⊆ V.carrier := by
+          rw [Set.pair_subset_iff]
+          unfold V
+          rw [← ge_L'.span_V, gaussian_elim_SI_empty mo sp_L.H]
+          simp
+          constructor
+          · exact f_mem_V
+          · exact αg_mem_V
+        apply @Submodule.span_mono K at f_αg_subset_V
+        unfold V at f_αg_subset_V
+        conv_rhs at f_αg_subset_V => rw [Submodule.carrier_eq_coe, Submodule.span_span]
+        apply f_αg_subset_V
+        rw [Submodule.mem_span_pair]
+        exists 1, -(f.coeff (leading_monomial' mo f f_ne_0) * (g.coeff (leading_monomial' mo g g_ne_0))⁻¹)
+        simp
+        ring
+      have f''_eq_0_or_lmf''_lt_lmf (f''_ne_0 : f'' ≠ 0)
+        : mo.toSyn (leading_monomial' mo f'' f''_ne_0) < mo.toSyn (leading_monomial' mo f f_ne_0) := by
+        conv_lhs => unfold leading_monomial' max_monomial'
+        simp only [AddEquiv.toEquiv_eq_coe, Equiv.invFun_as_coe, AddEquiv.coe_toEquiv_symm,
+          AddEquiv.apply_symm_apply, Finset.max'_lt_iff, Finset.mem_map_equiv]
+        intro β' β_supp_f''
+        apply lt_of_le_of_ne
+        · unfold f'' at β_supp_f''
+          rw [sub_eq_add_neg] at β_supp_f''
+          apply MvPolynomial.support_add at β_supp_f''
+          rw [Finset.mem_union] at β_supp_f''
+          cases β_supp_f'' with
+          | inl β_supp_f =>
+            unfold leading_monomial' max_monomial'
+            simp
+            apply Finset.le_max'
+            simp_all only [AddEquiv.toEquiv_eq_coe, Equiv.invFun_as_coe,
+              AddEquiv.coe_toEquiv_symm, AddEquiv.apply_symm_apply, Finset.mem_map_equiv]
+          | inr β_supp_αg =>
+            rw [
+              ← mul_one (f.coeff (leading_monomial' mo f f_ne_0) * (g.coeff (leading_monomial' mo g g_ne_0))⁻¹),
+              ← smul_eq_mul (f.coeff (leading_monomial' mo f f_ne_0) * (g.coeff (leading_monomial' mo g g_ne_0))⁻¹) 1,
+              ← MvPolynomial.smul_monomial (f.coeff (leading_monomial' mo f f_ne_0) * (g.coeff (leading_monomial' mo g g_ne_0))⁻¹),
+              smul_mul_assoc,
+              ← neg_smul (f.coeff (leading_monomial' mo f f_ne_0) * (g.coeff (leading_monomial' mo g g_ne_0))⁻¹) _
+            ] at β_supp_αg
+            apply MvPolynomial.support_smul at β_supp_αg
+            rw [lmf_eq_lmn, ← lmαg_eq_lmn]
+            unfold leading_monomial' max_monomial'
+            simp
+            apply Finset.le_max'
+            simp_all only [AddEquiv.toEquiv_eq_coe, Equiv.invFun_as_coe,
+              AddEquiv.coe_toEquiv_symm, AddEquiv.apply_symm_apply, Finset.mem_map_equiv]
+        · simp [f''] at β_supp_f''
+          contrapose β_supp_f''
+          simp at β_supp_f''
+          subst β'
+          simp [sub_eq_zero]
+          rw [
+            ← mul_one (f.coeff (leading_monomial' mo f f_ne_0) * (g.coeff (leading_monomial' mo g g_ne_0))⁻¹),
+            ← smul_eq_mul (f.coeff (leading_monomial' mo f f_ne_0) * (g.coeff (leading_monomial' mo g g_ne_0))⁻¹) 1,
+            ← MvPolynomial.smul_monomial (f.coeff (leading_monomial' mo f f_ne_0) * (g.coeff (leading_monomial' mo g g_ne_0))⁻¹),
+            smul_mul_assoc
+          ]
+          simp
+          rw [mul_assoc]
+          rw [left_eq_mul₀ (by exact lc_not_zero mo f f_ne_0)]
+          rw [inv_mul_eq_one₀ (by exact lc_not_zero mo g g_ne_0)]
+          conv_rhs =>
+            rw [lmf_eq_lmn, ← lmαg_eq_lmn]
+            rw [lm'_eq_of_eq mo _ _ (mul_comm (MvPolynomial.monomial α 1) g) αg_ne_0]
+            rw [lm'_monmul_commute mo g g_ne_0 α 1 (by simp)]
+            rw [add_comm]
+          simp only [MvPolynomial.coeff_monomial_mul, one_mul]
+      cases em (f'' = 0) with
+      | inl f''_eq_0 =>
+        subst f''
+        rw [sub_eq_zero] at f''_eq_0
+        let A : MvPolynomial σ K → MvPolynomial σ K := λ x =>
+          if x = g
+            then (MvPolynomial.monomial α) (f.coeff (leading_monomial' mo f f_ne_0) * (g.coeff (leading_monomial' mo g g_ne_0))⁻¹)
+            else 0
+        exists A
+        subst A
+        simp [Or.inl g_mem_G]
+        constructor
+        · exact f''_eq_0
+        · intro g' g'_mem_basis ⟨g'_eq_g, _, g'_ne_0⟩
+          subst g'
+          simp
+          apply le_of_eq
+          rw [AddEquiv.apply_eq_iff_eq]
+          rw [lm'_eq_of_eq mo _ _ (mul_comm _ g) _]
+          rw [lm'_monmul_commute mo g g_ne_0 α _ (by simp; exact ⟨lc_not_zero mo f f_ne_0, lc_not_zero mo g g_ne_0⟩)]
+          rw [lmf_eq_lmn, ← lmαg_eq_lmn]
+          rw [lm'_eq_of_eq mo _ _ (mul_comm _ g) _]
+          rw [lm'_monmul_commute mo g g_ne_0 α 1 (by simp)]
+      | inr f''_ne_0 =>
+        have lmf''_lt_lmf := f''_eq_0_or_lmf''_lt_lmf f''_ne_0
+        have IH' := IH _ lmf''_lt_lmf f'' f''_mem_V f''_ne_0 (by simp)
+        have key :=
+          mul_basis_add_red_0 mo (G ∪ N')
+            g (by simp; exact Or.inl g_mem_G) g_ne_0
+            f'' f''_ne_0 IH'
+            α
+            (f.coeff (leading_monomial' mo f f_ne_0) * (g.coeff (leading_monomial' mo g g_ne_0))⁻¹)
+            (by simp; exact ⟨lc_not_zero mo f f_ne_0, lc_not_zero mo g g_ne_0⟩)
+            (by
+              rw [lm'_eq_of_eq mo _ _ (mul_comm _ g) _]
+              rw [lm'_monmul_commute mo g g_ne_0 α _ (by simp; exact ⟨lc_not_zero mo f f_ne_0, lc_not_zero mo g g_ne_0⟩)]
+              rw [lmf_eq_lmn, ← lmαg_eq_lmn] at lmf''_lt_lmf
+              rw [lm'_eq_of_eq mo _ _ (mul_comm _ g) _] at lmf''_lt_lmf
+              rw [lm'_monmul_commute mo g g_ne_0 α 1 (by simp)] at lmf''_lt_lmf
+              exact lmf''_lt_lmf)
+        simp at key
+        have : f = f'' + (MvPolynomial.monomial α) (f.coeff (leading_monomial' mo f f_ne_0) * (g.coeff (leading_monomial' mo g g_ne_0))⁻¹) * g := by
+          simp [f'']
+        have key' := red_0_of_eq mo f _ this f_ne_0 (G ∪ N')
+        exact key'.mpr key
+
+
+lemma span_ge_symb_proc_red_0 {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ)
+  (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G)
+  (L : Finset (MvPolynomial σ K)) (hL : 0 ∉ L)
+  (hGL : ↑L ⊆ {mg | ∃ g ∈ G, ∃ α : σ →₀ ℕ, ∃ c : K, mg = g * MvPolynomial.monomial α c})
+  : let sp_L := symbolic_preprocess mo G hG L hL hGL
+    let ge_L' := gaussian_elim mo sp_L.H
+    let N := ge_L'.SO
+    let N' := N.filter (λ n => ∀ l ∈ sp_L.H, ¬leading_monomial mo l ≤ leading_monomial mo n)
+    let V : Submodule K (MvPolynomial σ K) := Submodule.span K sp_L.H
+    ∀ f ∈ V, (f_ne_0 : f ≠ 0) → reduces_to_zero mo f f_ne_0 (G ∪ N') := by
+  intro /-hGLi-/ sp_L ge_L' N N' V f f_mem_span f_ne_0
+  exact span_ge_symb_proc_red_0_induction mo G hG L hL hGL (mo.toSyn (leading_monomial' mo f f_ne_0)) f f_mem_span f_ne_0 (by simp)
 
 /-- The struct to iterate through F4. -/
 structure F4Struct {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (I : Ideal (MvPolynomial σ K)) where
   /-- Extension of basis set, written in `List` -/
   G : List (MvPolynomial σ K)
-  -- G : ℕ →₀ MvPolynomial σ K -- extension of basis set, written in `Finsupp`
   /-- Size of current basis set -/
   size : ℕ
-  -- supp_G_le_size : G.support = Finset.range size
   /-- The length of `G` equals `size` -/
   G_len_eq_size : G.length = size
   /-- All the elements in `G` are distinct -/
@@ -589,89 +1006,25 @@ structure F4Struct {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [Decida
   zero_not_mem_G' (i) (hi : i < G.length) : G[i] ≠ 0
   /-- Full set of index pairs, from (0, 1) to (size - 2, size - 1) -/
   i_pairs : Finset (Fin size × Fin size)
-  -- i_pairs_proc_prev : Finset (Fin size × Fin size) -- previously processed subset of i_pairs
   /-- Currently processed subset of i_pairs -/
   i_pairs_proc : Finset (Fin size × Fin size)
-  -- i_pairs_proc_prev_subs : i_pairs_proc_prev ⊆ i_pairs_proc
   /-- The set of processed pairs are contained in the full set of pairs -/
   i_pairs_proc_subs : i_pairs_proc ⊆ i_pairs
-  -- i_pairs_mem_supp_G : ∀ ip ∈ i_pairs, ip.fst ∈ G.support ∧ ip.snd ∈ G.support
   /-- For `(i, j) ∈ i_pairs`, `i < j`; hence all the index pairs are considered exactly once -/
-  i_pairs_lt : ∀ ip ∈ i_pairs, ip.fst.val < ip.snd.val
+  i_pairs_lt (ip) : ip ∈ i_pairs ↔ ip.fst.val < ip.snd.val
   /-- The size of `i_pairs`; used for termination proof -/
   i_pairs_card : i_pairs.card = size * (size - 1) / 2
-  -- span_ideal : I = Ideal.span (Finset.image G G.support)
   /-- Ideal spanned by `G` is invariant -/
   span_ideal : I = Ideal.span (G.toFinset)
   /-- Any S-polynomial of currently processed pair has standard reprentation over current `G`.
   Since `i_pairs = i_pairs_proc` after termination of F4, the resulting `G` satisfies
   Buchberger's refined criterion. -/
   sat_buchberger (ip) (ip_mem : ip ∈ i_pairs_proc) :
-    reduces_to_zero mo
-      (S_poly mo G[ip.fst] G[ip.snd]
+    let sip :=
+      S_poly mo G[ip.fst] G[ip.snd]
         (zero_not_mem_G' ip.fst (by rw [G_len_eq_size]; exact ip.fst.isLt))
-        (zero_not_mem_G' ip.snd (by rw [G_len_eq_size]; exact ip.snd.isLt)))
-      (G.toFinset)
-        /-
-        (by
-          apply Finsupp.mem_support_iff.mp
-          rw [supp_G_le_size]
-          exact Finset.mem_range.mpr ip.fst.isLt)
-        (by
-          apply Finsupp.mem_support_iff.mp
-          rw [supp_G_le_size]
-          exact Finset.mem_range.mpr ip.snd.isLt))
-        -/
-        /-
-        (Finsupp.mem_support_iff.mp
-          (i_pairs_mem_supp_G ip
-            (Finset.mem_of_subset
-              i_pairs_proc_subs
-              ip_mem)).1)
-        (Finsupp.mem_support_iff.mp
-          (i_pairs_mem_supp_G ip
-            (Finset.mem_of_subset
-              i_pairs_proc_subs
-              ip_mem)).2))
-        -/
-      -- (Finset.image G G.support)
-
-  -- TODO: existence of standard presentation for every S-poly
-
-/-
-noncomputable def finset_to_finsupp {τ : Type*} [Zero τ]
-  (S : Finset τ) : ℕ →₀ τ :=
-  S.toList.toFinsupp
--/
-/-
-lemma img_ls_fsupp_eq_self {τ : Type*} [Zero τ] (S : Finset τ) (hS : 0 ∉ S)
-  : S = Finset.image (⇑S.toList.toFinsupp) S.toList.toFinsupp.support := by
-  ext x
-  constructor
-  · intro hx
-    have x_not_0 : x ≠ 0 := ne_of_mem_of_not_mem hx hS
-    rw [← Finset.mem_toList, List.mem_iff_getElem] at hx
-    let ⟨i, hi, hix⟩ := hx
-    rw [Finset.mem_image, List.toFinsupp_support]
-    simp only [Finset.length_toList, Finset.mem_filter,
-      Finset.mem_range, List.toFinsupp_apply]
-    exists i
-    constructor
-    · constructor
-      · rw [← Finset.length_toList S]
-        exact hi
-      · rw [List.getD_eq_getElem S.toList 0 hi, hix]
-        exact x_not_0
-    · rw [List.getD_eq_getElem S.toList 0 hi, hix]
-  · intro hx
-    rw [← Finset.mem_toList]
-    rw [Finset.mem_image, List.toFinsupp_support] at hx
-    simp only [Finset.length_toList, Finset.mem_filter,
-      Finset.mem_range, List.toFinsupp_apply] at hx
-    let ⟨i, ⟨i_lt, get_i_ne_0⟩, get_i_eq_x⟩ := hx
-    subst get_i_eq_x
-    simp_all
--/
+        (zero_not_mem_G' ip.snd (by rw [G_len_eq_size]; exact ip.snd.isLt))
+    (hsip : sip ≠ 0) → reduces_to_zero mo sip hsip (G.toFinset)
 
 /-- Same sets generate same ideals. Auxiliary lemma for `F4Struct.span_ideal`. -/
 lemma ideal_span_eq_of_eq {α : Type*} [Semiring α] {s t : Set α} :
@@ -787,295 +1140,442 @@ instance imv_nat_wf {σ K : Type*} [Finite σ] [Field K]
   : WellFoundedRelation (Ideal (MvPolynomial σ K) × ℕ) :=
   (@Prod.Lex.instIsWellFounded (Ideal (MvPolynomial σ K)) ℕ (· > ·) (· < ·) _ _).toWellFoundedRelation
 
+def f4s_lex_prod {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (I : Ideal (MvPolynomial σ K)) (f4s : F4Struct mo I)
+  : Ideal (MvPolynomial σ K) × ℕ :=
+  (monomial_ideal K (leading_monomials_fin mo f4s.G.toFinset),
+   (f4s.i_pairs \ f4s.i_pairs_proc).card)
+
 set_option maxHeartbeats 1000000 -- requires slightly more than 200000 heartbeats
--- #count_heartbeats in
-noncomputable def F4_rec {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+#count_heartbeats in
+noncomputable def F4_step {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (I : Ideal (MvPolynomial σ K))
-  (f4s : F4Struct mo I) : F4Struct mo I :=
-  if full_proc : f4s.i_pairs = f4s.i_pairs_proc
-    then f4s -- terminates when all the index pairs are processed
-    else
-      have pairs_diff_nonempty : (f4s.i_pairs \ f4s.i_pairs_proc).Nonempty := by
-        push_neg at full_proc
-        rw [Finset.sdiff_nonempty]
-        apply not_subset_of_ssubset
-        exact ssubset_of_subset_of_ne f4s.i_pairs_proc_subs (full_proc.symm)
-      have pairs_choosable : ((f4s.i_pairs \ f4s.i_pairs_proc).powerset.erase ∅).Nonempty := by
-        rw [Finset.erase_eq, Finset.sdiff_nonempty]
-        by_contra H
-        simp at H
-        cases H with
-        | inl H =>
-          let H' := (f4s.i_pairs \ f4s.i_pairs_proc).powerset_nonempty
-          rw [Finset.nonempty_iff_ne_empty] at H'
-          exact H' H
-        | inr H =>
-          rw [Finset.sdiff_nonempty] at pairs_diff_nonempty
-          exact pairs_diff_nonempty H
-      let i_pairs_new := Classical.choose (Finset.Nonempty.exists_mem pairs_choosable)
-      have i_pairs_new_spec : i_pairs_new ≠ ∅ ∧ i_pairs_new ⊆ f4s.i_pairs \ f4s.i_pairs_proc := by
-        let spec := Classical.choose_spec (Finset.Nonempty.exists_mem pairs_choosable)
-        simp at spec
-        exact spec
-      have i_pairs_proc_new_disj : Disjoint i_pairs_new f4s.i_pairs_proc :=
-        (Finset.subset_sdiff.mp i_pairs_new_spec.2).2
-      /-
-      have i_isLt' : i < f4s.G.length := by
-        rw [← f4s.G_len_eq_size]
-        exact i.isLt
-      have j_isLt' : j < f4s.G.length := by
-        rw [← f4s.G_len_eq_size]
-        exact j.isLt
-      -/
-      let L :=
-        Finset.biUnion i_pairs_new
-          (λ ⟨i, j⟩ =>
-            let s_pair := S_pair mo
-              (f4s.G[i]'(by rw [f4s.G_len_eq_size]; exact i.isLt))
-              (f4s.G[j]'(by rw [f4s.G_len_eq_size]; exact j.isLt))
-              (f4s.zero_not_mem_G' i (by rw [f4s.G_len_eq_size]; exact i.isLt))
-              (f4s.zero_not_mem_G' j (by rw [f4s.G_len_eq_size]; exact j.isLt))
-              /-
-              (by
-                apply Finsupp.mem_support_iff.mp
-                rw [f4s.supp_G_le_size]
-                exact Finset.mem_range.mpr i.isLt)
-              (by
-                apply Finsupp.mem_support_iff.mp
-                rw [f4s.supp_G_le_size]
-                exact Finset.mem_range.mpr j.isLt)
-              -/
-            { s_pair.fst, s_pair.snd })
-      have L_sub_ideal_G : ↑(L.erase 0) ⊆ (Ideal.span f4s.G.toFinset : Ideal (MvPolynomial σ K)).carrier := by
-        intro p
-        simp
-        intro p_mem_L p_not_0
-        simp [L] at p_mem_L
-        let ⟨i, j, hij, hpij⟩ := p_mem_L
-        simp [S_pair] at hpij
-        cases hpij with
-        | inl hpij1 =>
-          have : Ideal.span {f4s.G[i]'(by rw [f4s.G_len_eq_size]; exact i.isLt)}
-               ≤ Ideal.span {a | a ∈ f4s.G} := by
-            apply Ideal.span_mono
-            simp
-          apply this
-          rw [Ideal.mem_span_singleton, hpij1]
-          simp
-        | inr hpij2 =>
-          have : Ideal.span {f4s.G[j]'(by rw [f4s.G_len_eq_size]; exact j.isLt)}
-               ≤ Ideal.span {a | a ∈ f4s.G} := by
-            apply Ideal.span_mono
-            simp
-          apply this
-          rw [Ideal.mem_span_singleton, hpij2]
-          simp
-      let symb_proc_L :=
-        symbolic_preprocess mo
-          f4s.G.toFinset
-          (by rw [List.mem_toFinset]; exact f4s.zero_not_mem_G)
-          (L.erase 0)
-          (by simp)
-          L_sub_ideal_G
-        -- (symbolic_preprocess mo (f4s.G.support.image f4s.G) (by simp) (L.erase 0) (by simp))
-      let L' := symb_proc_L.H
-      let ge_L' := gaussian_elim mo L'
-      let N := ge_L'.SO
-      let N' := N.filter (λ n => ∀ l ∈ L', ¬leading_monomial mo l ≤ leading_monomial mo n)
-      have mem_N'_not_mem_f4s_G (n) (hnN' : n ∈ N') : n ∉ f4s.G := by
-        intro hnG
-        simp [N'] at hnN'
-        rcases hnN' with ⟨hnN, hnL'⟩
-        have n_ne_0 : n ≠ 0 := ne_of_mem_of_not_mem hnG f4s.zero_not_mem_G
-        let ν := leading_monomial' mo n n_ne_0
-        have ν_done : ν ∈ symb_proc_L.done_mons := by
-          rw [symbolic_preprocess_done_mons mo
-              f4s.G.toFinset (by rw [List.mem_toFinset]; exact f4s.zero_not_mem_G)
-              (L.erase 0) (by simp)
-              L_sub_ideal_G,
-              ← ge_L'.monset_fixed, gaussian_elim_SI_empty mo L']
-          simp
-          unfold N at hnN
-          rw [← Finset.insert_erase hnN, Finset.insert_eq, monomial_set_union_distrib]
-          simp
-          apply Or.inl
-          rw [singleton_monset_eq_support]
-          exact lm'_mem mo n n_ne_0
-        let key := symb_proc_L.div_then_cont_mult ν ν_done
-        rw [← imp_iff_not_or] at key
-        have key' : leading_monomial mo n ≤ ν := by
-          unfold ν
-          rw [lm_coe_lm' mo n n_ne_0]
-        let key := key ⟨n, List.mem_toFinset.mpr hnG, key'⟩
-        unfold L' at hnL'
-        rcases key with ⟨f, hfG, μ, c, c_ne_0, μcf_mul_mem, μcf_mul_lm⟩
-        let hnL' := hnL' _ μcf_mul_mem
-        unfold ν at μcf_mul_lm
-        rw [← lm_coe_lm' mo n n_ne_0] at μcf_mul_lm
-        exact hnL' (le_of_eq μcf_mul_lm)
-      have N'_subs_N : N' ⊆ N := by
+  (f4s : F4Struct mo I) (full_proc : ¬f4s.i_pairs = f4s.i_pairs_proc)
+  : F4Struct mo I :=
+  have pairs_diff_nonempty : (f4s.i_pairs \ f4s.i_pairs_proc).Nonempty := by
+    push_neg at full_proc
+    rw [Finset.sdiff_nonempty]
+    apply not_subset_of_ssubset
+    exact ssubset_of_subset_of_ne f4s.i_pairs_proc_subs (full_proc.symm)
+  have pairs_choosable : ((f4s.i_pairs \ f4s.i_pairs_proc).powerset.erase ∅).Nonempty := by
+    rw [Finset.erase_eq, Finset.sdiff_nonempty]
+    by_contra H
+    simp at H
+    cases H with
+    | inl H =>
+      let H' := (f4s.i_pairs \ f4s.i_pairs_proc).powerset_nonempty
+      rw [Finset.nonempty_iff_ne_empty] at H'
+      exact H' H
+    | inr H =>
+      rw [Finset.sdiff_nonempty] at pairs_diff_nonempty
+      exact pairs_diff_nonempty H
+  let i_pairs_new := Classical.choose (Finset.Nonempty.exists_mem pairs_choosable)
+  have i_pairs_new_spec : i_pairs_new ≠ ∅ ∧ i_pairs_new ⊆ f4s.i_pairs \ f4s.i_pairs_proc := by
+    let spec := Classical.choose_spec (Finset.Nonempty.exists_mem pairs_choosable)
+    simp at spec
+    exact spec
+  have i_pairs_proc_new_disj : Disjoint i_pairs_new f4s.i_pairs_proc :=
+    (Finset.subset_sdiff.mp i_pairs_new_spec.2).2
+  let ip_to_spair : Fin f4s.size × Fin f4s.size → Finset (MvPolynomial σ K) :=
+    (λ ⟨i, j⟩ =>
+      let s_pair := S_pair mo
+        (f4s.G[i]'(by rw [f4s.G_len_eq_size]; exact i.isLt))
+        (f4s.G[j]'(by rw [f4s.G_len_eq_size]; exact j.isLt))
+        (f4s.zero_not_mem_G' i (by rw [f4s.G_len_eq_size]; exact i.isLt))
+        (f4s.zero_not_mem_G' j (by rw [f4s.G_len_eq_size]; exact j.isLt))
+      { s_pair.fst, s_pair.snd })
+  let L := Finset.biUnion i_pairs_new ip_to_spair
+  have zero_not_mem_L : 0 ∉ L := by
+    simp [L, Finset.mem_biUnion, ip_to_spair, S_pair]
+    intro i j ij_mem_new
+    have gi_ne_0 : f4s.G[i.val]'(by rw [f4s.G_len_eq_size]; exact i.isLt) ≠ 0 := f4s.zero_not_mem_G' i.val _
+    have gj_ne_0 : f4s.G[j.val]'(by rw [f4s.G_len_eq_size]; exact j.isLt) ≠ 0 := f4s.zero_not_mem_G' j.val _
+    constructor
+    · exact ⟨gi_ne_0, lc_not_zero mo _ gi_ne_0⟩
+    · exact ⟨gj_ne_0, lc_not_zero mo _ gj_ne_0⟩
+  have L_sub_monmul_G : ↑L ⊆ {mg | ∃ g ∈ f4s.G.toFinset, ∃ α : σ →₀ ℕ, ∃ c : K, mg = g * MvPolynomial.monomial α c} := by
+    intro p p_mem_L
+    simp
+    simp [L] at p_mem_L
+    let ⟨i, j, hij, hpij⟩ := p_mem_L
+    simp [ip_to_spair] at hpij
+    let fi := f4s.G[i]'(by rw [f4s.G_len_eq_size]; exact i.isLt)
+    let fj := f4s.G[j]'(by rw [f4s.G_len_eq_size]; exact j.isLt)
+    have fi_mem_G : fi ∈ f4s.G := by simp [fi]
+    have fj_mem_G : fj ∈ f4s.G := by simp [fj]
+    have fi_ne_0 := f4s.zero_not_mem_G' i (by rw [f4s.G_len_eq_size]; exact i.isLt)
+    have fj_ne_0 := f4s.zero_not_mem_G' j (by rw [f4s.G_len_eq_size]; exact j.isLt)
+    let lmfi := leading_monomial' mo fi fi_ne_0
+    let lmfj := leading_monomial' mo fj fj_ne_0
+    cases hpij with
+    | inl hpij1 =>
+      exists fi, fi_mem_G, (lcm_monomial lmfi lmfj - lmfi), (fi.coeff lmfi)⁻¹
+    | inr hpij2 =>
+      exists fj, fj_mem_G, (lcm_monomial lmfi lmfj - lmfj), (fj.coeff lmfj)⁻¹
+  let symb_proc_L :=
+    symbolic_preprocess mo
+      f4s.G.toFinset
+      (by rw [List.mem_toFinset]; exact f4s.zero_not_mem_G)
+      L zero_not_mem_L L_sub_monmul_G
+  let L' := symb_proc_L.H
+  let ge_L' := gaussian_elim mo L'
+  let N := ge_L'.SO
+  let N' := N.filter (λ n => ∀ l ∈ L', ¬leading_monomial mo l ≤ leading_monomial mo n)
+  have mem_N'_not_mem_f4s_G (n) (hnN' : n ∈ N') : n ∉ f4s.G := by
+    intro hnG
+    simp [N'] at hnN'
+    rcases hnN' with ⟨hnN, hnL'⟩
+    have n_ne_0 : n ≠ 0 := ne_of_mem_of_not_mem hnG f4s.zero_not_mem_G
+    let ν := leading_monomial' mo n n_ne_0
+    have ν_done : ν ∈ symb_proc_L.done_mons := by
+      rw [symbolic_preprocess_done_mons mo
+          f4s.G.toFinset (by rw [List.mem_toFinset]; exact f4s.zero_not_mem_G)
+          L zero_not_mem_L L_sub_monmul_G,
+          ← ge_L'.monset_fixed, gaussian_elim_SI_empty mo L']
+      simp
+      unfold N at hnN
+      rw [← Finset.insert_erase hnN, Finset.insert_eq, monomial_set_union_distrib]
+      simp
+      apply Or.inl
+      rw [singleton_monset_eq_support]
+      exact lm'_mem mo n n_ne_0
+    let key := symb_proc_L.div_then_cont_mult ν ν_done
+    rw [← imp_iff_not_or] at key
+    have key' : leading_monomial mo n ≤ ν := by
+      unfold ν
+      rw [lm_coe_lm' mo n n_ne_0]
+    let key := key ⟨n, List.mem_toFinset.mpr hnG, key'⟩
+    unfold L' at hnL'
+    rcases key with ⟨f, hfG, μ, μcf_mul_mem, μcf_mul_lm⟩
+    let hnL' := hnL' _ μcf_mul_mem
+    unfold ν at μcf_mul_lm
+    rw [← lm_coe_lm' mo n n_ne_0] at μcf_mul_lm
+    exact hnL' (le_of_eq μcf_mul_lm)
+  have N'_subs_N : N' ⊆ N := by
+    unfold N'
+    apply Finset.filter_subset
+  let i_pairs_ext : (Fin f4s.size × Fin f4s.size) ↪ (Fin (f4s.size + N'.card) × Fin (f4s.size + N'.card)) := {
+    toFun (ip) := (Fin.castAdd N'.card ip.fst, Fin.castAdd N'.card ip.snd)
+    inj' := by unfold Function.Injective; simp
+  }
+  let size := f4s.size + N'.card
+  let G := f4s.G ++ N'.toList
+  let i_pairs := pair_set (@Finset.univ (Fin (f4s.size + N'.card)) _)
+  let i_pairs_proc := (f4s.i_pairs_proc ∪ i_pairs_new).map i_pairs_ext
+  have i_pairs_proc_subs : i_pairs_proc ⊆ i_pairs := by
+    simp [i_pairs, i_pairs_proc, pair_set, Finset.map_union, Finset.union_subset_iff]
+    constructor
+    · intro ⟨i', j'⟩
+      simp [i_pairs_ext]
+      intro i j hij hii' hjj'
+      simp [← hii', ← hjj']
+      apply f4s.i_pairs_proc_subs at hij
+      exact (f4s.i_pairs_lt (i, j)).mp hij
+    · intro ⟨i', j'⟩
+      simp [i_pairs_ext]
+      intro i j hij hii' hjj'
+      simp [← hii', ← hjj']
+      apply i_pairs_new_spec.2 at hij
+      apply Finset.sdiff_subset at hij
+      exact (f4s.i_pairs_lt (i, j)).mp hij
+  have i_pairs_card : i_pairs.card = size * (size - 1) / 2 := by
+    have : (@Finset.univ (Fin (f4s.size + N'.card)) _).card = size := by simp [size]
+    rw [pair_set_card (@Finset.univ (Fin (f4s.size + N'.card)) _), this]
+  {
+    size := size
+    G := G
+    G_len_eq_size := by
+      simp [size, G]
+      exact f4s.G_len_eq_size
+    G_inj_on_supp := by
+      simp [G]
+      intro i hi j hj
+      simp [List.getElem_append]
+      have G_N'_mem_ne (g) (hg : g ∈ f4s.G) (n) (hn : n ∈ N'.toList) : g ≠ n :=
+        ne_of_mem_of_not_mem hg (mem_N'_not_mem_f4s_G n (Finset.mem_toList.mp hn))
+      split_ifs with hi' hj' hj'
+      · exact f4s.G_inj_on_supp i hi' j hj'
+      · contrapose
+        intro _
+        apply G_N'_mem_ne
+        · simp
+        · simp
+      · contrapose
+        intro _
+        push_neg
+        apply Ne.symm
+        apply G_N'_mem_ne
+        · simp
+        · simp
+      · intro hij
+        rw [List.Nodup.getElem_inj_iff (Finset.nodup_toList N')] at hij
+        simp_all
+        rw [← add_left_inj f4s.G.length] at hij
+        simp_all only [Nat.sub_add_cancel]
+    zero_not_mem_G := by
+      simp [G]
+      constructor
+      · exact f4s.zero_not_mem_G
+      · have : 0 ∉ N := ge_L'.zero_not_mem_SO
+        revert this
         unfold N'
-        apply Finset.filter_subset
-      let i_pairs_ext : (Fin f4s.size × Fin f4s.size) ↪ (Fin (f4s.size + N'.card) × Fin (f4s.size + N'.card)) := {
-        toFun (ip) := (Fin.addNat ip.fst N'.card, Fin.addNat ip.snd N'.card)
-        inj' := by unfold Function.Injective; simp
-      }
-      let size := f4s.size + N'.card
-      let G := f4s.G ++ N'.toList
-      let i_pairs := pair_set (@Finset.univ (Fin (f4s.size + N'.card)) _)
-      let i_pairs_proc := (f4s.i_pairs_proc ∪ i_pairs_new).map i_pairs_ext
-      have i_pairs_proc_subs : i_pairs_proc ⊆ i_pairs := by
-        simp [i_pairs, i_pairs_proc, pair_set, Finset.map_union, Finset.union_subset_iff]
+        contrapose
+        simp
+        intro H _
+        exact H
+    zero_not_mem_G' := by -- 사실상 zero_not_mem_G와 동치
+      intro i hi
+      rw [List.getElem_append]
+      split_ifs with hi'
+      · exact f4s.zero_not_mem_G' i hi'
+      · have zero_not_mem_N' : 0 ∉ N'.toList := by
+          rw [Finset.mem_toList]
+          unfold N'
+          simp
+          intro HN
+          by_contra _
+          exact ge_L'.zero_not_mem_SO HN
+        exact ne_of_mem_of_not_mem (N'.toList.getElem_mem _) zero_not_mem_N'
+    i_pairs := i_pairs
+    i_pairs_proc := i_pairs_proc
+    i_pairs_proc_subs := i_pairs_proc_subs
+    i_pairs_lt := by
+      simp [i_pairs]
+      intro i j
+      simp [pair_set]
+    i_pairs_card := i_pairs_card
+    span_ideal := by
+      let prev_span_ideal := f4s.span_ideal
+      conv_lhs => rw [prev_span_ideal]
+      conv_rhs => unfold G
+      apply Submodule.span_eq_span
+      · simp
+        intro p hp
+        apply @Ideal.subset_span _ _ ({a | a ∈ f4s.G} ∪ ↑N')
+        apply Or.inl hp
+      · simp
         constructor
-        · intro ⟨i', j'⟩
-          simp [i_pairs_ext]
-          intro i j hij hii' hjj'
-          simp [← hii', ← hjj']
-          apply f4s.i_pairs_proc_subs at hij
-          exact f4s.i_pairs_lt (i, j) hij
-        · intro ⟨i', j'⟩
-          simp [i_pairs_ext]
-          intro i j hij hii' hjj'
-          simp [← hii', ← hjj']
-          apply i_pairs_new_spec.2 at hij
-          apply Finset.sdiff_subset at hij
-          exact f4s.i_pairs_lt (i, j) hij
-      have i_pairs_card : i_pairs.card = size * (size - 1) / 2 := by
-        have : (@Finset.univ (Fin (f4s.size + N'.card)) _).card = size := by simp [size]
-        rw [pair_set_card (@Finset.univ (Fin (f4s.size + N'.card)) _), this]
-      F4_rec mo I {
-        size := size
-        G := G
-        G_len_eq_size := by
-          simp [size, G]
-          exact f4s.G_len_eq_size
-        G_inj_on_supp := by
-          simp [G]
-          intro i hi j hj
-          -- cases for hi & hj, wrt lt or ge f4s.G.length
-          -- use List.getElem_append
-          simp [List.getElem_append]
-          have G_N'_mem_ne (g) (hg : g ∈ f4s.G) (n) (hn : n ∈ N'.toList) : g ≠ n :=
-            ne_of_mem_of_not_mem hg (mem_N'_not_mem_f4s_G n (Finset.mem_toList.mp hn))
-          split_ifs with hi' hj' hj'
-          · exact f4s.G_inj_on_supp i hi' j hj'
-          · contrapose
-            intro _
-            apply G_N'_mem_ne
-            · simp
-            · simp
-          · contrapose
-            intro _
-            push_neg
-            apply Ne.symm
-            apply G_N'_mem_ne
-            · simp
-            · simp
-          · intro hij
-            rw [List.Nodup.getElem_inj_iff (Finset.nodup_toList N')] at hij
-            simp_all
-            rw [← add_left_inj f4s.G.length] at hij
-            simp_all only [Nat.sub_add_cancel]
-        zero_not_mem_G := by
-          simp [G]
-          constructor
-          · exact f4s.zero_not_mem_G
-          · have : 0 ∉ N := ge_L'.zero_not_mem_SO
-            revert this
-            unfold N'
-            contrapose
-            simp
-            intro H _
-            exact H
-        zero_not_mem_G' := by -- 사실상 zero_not_mem_G와 동치
-          intro i hi
-          rw [List.getElem_append]
-          split_ifs with hi'
-          · exact f4s.zero_not_mem_G' i hi'
-          · have zero_not_mem_N' : 0 ∉ N'.toList := by
-              rw [Finset.mem_toList]
-              unfold N'
-              simp
-              intro HN
-              by_contra _
-              exact ge_L'.zero_not_mem_SO HN
-            exact ne_of_mem_of_not_mem (N'.toList.getElem_mem _) zero_not_mem_N'
-        i_pairs := i_pairs
-          -- f4s.i_pairs.map i_pairs_ext
-        i_pairs_proc := i_pairs_proc
-        i_pairs_proc_subs := i_pairs_proc_subs
-          -- apply Finset.union_subset
-          /-
-          simp [Finset.map_subset_map]
-          apply Finset.union_subset
-          · exact f4s.i_pairs_proc_subs
-          · exact (Finset.subset_sdiff.mp i_pairs_new_spec.2).1
-          -/
-        i_pairs_lt := by
-          simp [i_pairs]
-          intro i j hij
-          -- simp [i_pairs_ext, Finset.map]
-          simp [pair_set] at hij
-          exact hij
-        i_pairs_card := i_pairs_card
-        span_ideal := by
-          let prev_span_ideal := f4s.span_ideal
-          conv_lhs => rw [prev_span_ideal]
-          conv_rhs => unfold G
-          apply Submodule.span_eq_span
-          · simp
-            intro p hp
-            apply @Ideal.subset_span _ _ ({a | a ∈ f4s.G} ∪ ↑N')
-            apply Or.inl hp
-          · simp
-            constructor
-            · exact Ideal.subset_span
-            · intro p hp
-              apply N'_subs_N at hp
-              unfold N at hp
-              have ge_L'_SI_empty : ge_L'.SI = ∅ := gaussian_elim_SI_empty mo L'
-              have ge_L'_K_span :
-                (Submodule.span K (ge_L'.SI ∪ ge_L'.SO) : Submodule K (MvPolynomial σ K))
-                = Submodule.span K L' := by
-                apply ge_L'.span_V
-              simp [ge_L'_SI_empty] at ge_L'_K_span
-              have submod_span_subs :
-                (Submodule.span K L' : Submodule K (MvPolynomial σ K)).carrier
-                ⊆ (Ideal.span L' : Ideal (MvPolynomial σ K)).carrier := by
-                unfold Ideal.span
-                apply Submodule.span_subset_span
-              have ideal_span_subs :
-                Ideal.span L' ≤ Ideal.span {a | a ∈ f4s.G} := by
-                rw [Ideal.span_le]
-                unfold L'
-                let key := symb_proc_L.H_sub_ideal_G
-                simp at key
-                exact key
-              apply ideal_span_subs
-              apply submod_span_subs
-              rw [← ge_L'_K_span]
-              simp
-              rw [← Finset.mem_coe] at hp
-              exact Submodule.subset_span hp
-        sat_buchberger := by
-          sorry
-      }
-termination_by
-  ((monomial_ideal K (leading_monomials_fin mo f4s.G.toFinset) : Ideal (MvPolynomial σ K)),
-   Finset.card (f4s.i_pairs \ f4s.i_pairs_proc))
-decreasing_by
-  let lmi_f4s_G : Ideal (MvPolynomial σ K) := monomial_ideal K (leading_monomials_fin mo f4s.G.toFinset)
-  let lmi_G : Ideal (MvPolynomial σ K) := monomial_ideal K ↑(leading_monomials_fin mo G.toFinset)
-  have f4s_moni_ipcard_lex_decr : -- termination proof
-    lmi_f4s_G < lmi_G ∨
-    lmi_G = lmi_f4s_G ∧ (i_pairs \ i_pairs_proc).card < (f4s.i_pairs \ f4s.i_pairs_proc).card := by
+        · exact Ideal.subset_span
+        · intro p hp
+          apply N'_subs_N at hp
+          unfold N at hp
+          have ge_L'_SI_empty : ge_L'.SI = ∅ := gaussian_elim_SI_empty mo L'
+          have ge_L'_K_span :
+            (Submodule.span K (ge_L'.SI ∪ ge_L'.SO) : Submodule K (MvPolynomial σ K))
+            = Submodule.span K L' := by
+            apply ge_L'.span_V
+          simp [ge_L'_SI_empty] at ge_L'_K_span
+          have submod_span_subs :
+            (Submodule.span K L' : Submodule K (MvPolynomial σ K)).carrier
+            ⊆ (Ideal.span L' : Ideal (MvPolynomial σ K)).carrier := by
+            unfold Ideal.span
+            apply Submodule.span_subset_span
+          have ideal_span_subs :
+            Ideal.span L' ≤ Ideal.span {a | a ∈ f4s.G} := by
+            rw [Ideal.span_le]
+            unfold L'
+            let key := symb_proc_L.H_sub_ideal_G
+            simp at key
+            exact key
+          apply ideal_span_subs
+          apply submod_span_subs
+          rw [← ge_L'_K_span]
+          simp
+          rw [← Finset.mem_coe] at hp
+          exact Submodule.subset_span hp
+    sat_buchberger := by
+      unfold G
+      intro ⟨i, j⟩ ij_proc spoly_ij spoly_ij_ne_0
+      simp [i_pairs_proc] at ij_proc
+      rcases ij_proc with ⟨i', j', ij'_mem, ext_ij'_eq_ij⟩
+      simp [i_pairs_ext, DFunLike.coe] at ext_ij'_eq_ij
+      simp
+      have i_eq_i' : i.val = i'.val := by rw [← ext_ij'_eq_ij.1]; simp
+      have j_eq_j' : j.val = j'.val := by rw [← ext_ij'_eq_ij.2]; simp
+      have i_ran : i.val < f4s.G.length := by rw [i_eq_i', f4s.G_len_eq_size]; simp
+      have j_ran : j.val < f4s.G.length := by rw [j_eq_j', f4s.G_len_eq_size]; simp
+      have len_le : f4s.G.length ≤ (f4s.G ++ N'.toList).length := by
+        simp only [List.length_append, le_add_iff_nonneg_right, zero_le]
+      have get_i_eq : (f4s.G ++ N'.toList)[i.val]'(lt_of_lt_of_le i_ran len_le) = f4s.G[i.val]'i_ran := by
+        exact List.getElem_append_left i_ran
+      have get_j_eq : (f4s.G ++ N'.toList)[j.val]'(lt_of_lt_of_le j_ran len_le) = f4s.G[j.val]'j_ran := by
+        exact List.getElem_append_left j_ran
+      have gi_ne_0 : f4s.G[i.val] ≠ 0 := f4s.zero_not_mem_G' i.val i_ran
+      have gj_ne_0 : f4s.G[j.val] ≠ 0 := f4s.zero_not_mem_G' j.val j_ran
+      let spair_ij := S_pair mo f4s.G[i.val] f4s.G[j.val] gi_ne_0 gj_ne_0
+      let sij := spair_ij.1
+      let sji := spair_ij.2
+      have spoly_ij_eq : spoly_ij = sij - sji := by
+        simp [spoly_ij, S_poly, sij, sji, spair_ij, get_i_eq, get_j_eq]
+      have sij_ne_0 : sij ≠ 0 := by
+        simp [sij, spair_ij, S_pair]
+        exact ⟨gi_ne_0, lc_not_zero mo f4s.G[i.val] gi_ne_0⟩
+      have sji_ne_0 : sji ≠ 0 := by
+        simp [sji, spair_ij, S_pair]
+        exact ⟨gj_ne_0, lc_not_zero mo f4s.G[j.val] gj_ne_0⟩
+      cases ij'_mem with
+      | inl ij'_mem_proc =>
+        apply red_0_on_extension mo spoly_ij spoly_ij_ne_0 f4s.G.toFinset N'
+        have key := f4s.sat_buchberger (i', j') ij'_mem_proc
+          (by simp [← i_eq_i', ← j_eq_j', S_poly]; simp [spoly_ij_eq] at spoly_ij_ne_0; exact spoly_ij_ne_0)
+        simp at key
+        have gi_eq_gi' : f4s.G[i.val] = f4s.G[i'.val] := by simp_all only [ne_eq]
+        have gj_eq_gj' : f4s.G[j.val] = f4s.G[j'.val] := by simp_all only [ne_eq]
+        have spoly_eq_spoly'
+          : spoly_ij = S_poly mo f4s.G[i'.val] f4s.G[j'.val] (by rw [← gi_eq_gi']; exact gi_ne_0) (by rw [← gj_eq_gj']; exact gj_ne_0) := by
+          simp [spoly_ij, sij, sji, S_poly, S_pair, get_i_eq, get_j_eq]
+          conv_lhs =>
+            rw [lm'_eq_of_eq mo _ _ gi_eq_gi' gi_ne_0, lm'_eq_of_eq mo _ _ gj_eq_gj' gj_ne_0]
+          simp [gi_eq_gi', gj_eq_gj']
+        have key' := red_0_of_eq mo spoly_ij _ spoly_eq_spoly' spoly_ij_ne_0 f4s.G.toFinset
+        exact key'.mpr key
+      | inr ij'_mem_new =>
+        have spair_ij_in_L : {sij, sji} ⊆ L := by
+          unfold L
+          have key := Finset.subset_biUnion_of_mem ip_to_spair ij'_mem_new
+          simp [ip_to_spair, ← i_eq_i', ← j_eq_j'] at key
+          exact key
+        have spair_ij_in_L' : {sij, sji} ⊆ L' := subset_trans spair_ij_in_L symb_proc_L.H0_sub_H
+        have spoly_ij_mem_V : spoly_ij ∈ Submodule.span K L' := by
+          have span_spair_le_V : Submodule.span K {sij, sji} ≤ Submodule.span K L' := by
+            exact @Submodule.span_mono K (MvPolynomial σ K) _ _ _ {sij, sji} L'
+              (by rw [← Finset.coe_pair]; exact Finset.coe_subset.mpr spair_ij_in_L')
+          apply span_spair_le_V
+          rw [spoly_ij_eq]
+          rw [Submodule.mem_span_pair]
+          exists 1, -1
+          simp
+          ring
+        exact span_ge_symb_proc_red_0 mo
+          f4s.G.toFinset (by rw [List.mem_toFinset]; exact f4s.zero_not_mem_G)
+          L zero_not_mem_L L_sub_monmul_G
+          spoly_ij spoly_ij_mem_V spoly_ij_ne_0
+  }
+
+lemma f4s_moni_ipcard_lex_decr {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (I : Ideal (MvPolynomial σ K))
+  (f4s : F4Struct mo I) (full_proc : ¬f4s.i_pairs = f4s.i_pairs_proc)
+  : let f4s' := F4_step mo I f4s full_proc
+    /-
+    let lmi : Ideal (MvPolynomial σ K) := monomial_ideal K (leading_monomials_fin mo f4s.G.toFinset)
+    let lmi' : Ideal (MvPolynomial σ K) := monomial_ideal K (leading_monomials_fin mo f4s'.G.toFinset)
+    lmi < lmi' ∨
+    lmi' = lmi ∧ (f4s'.i_pairs \ f4s'.i_pairs_proc).card < (f4s.i_pairs \ f4s.i_pairs_proc).card := by
+    -/
+    Prod.Lex (· > ·) (· < ·) (f4s_lex_prod mo I f4s') (f4s_lex_prod mo I f4s) := by
+  have pairs_diff_nonempty : (f4s.i_pairs \ f4s.i_pairs_proc).Nonempty := by
+    push_neg at full_proc
+    rw [Finset.sdiff_nonempty]
+    apply not_subset_of_ssubset
+    exact ssubset_of_subset_of_ne f4s.i_pairs_proc_subs (full_proc.symm)
+  have pairs_choosable : ((f4s.i_pairs \ f4s.i_pairs_proc).powerset.erase ∅).Nonempty := by
+    rw [Finset.erase_eq, Finset.sdiff_nonempty]
+    by_contra H
+    simp at H
+    cases H with
+    | inl H =>
+      let H' := (f4s.i_pairs \ f4s.i_pairs_proc).powerset_nonempty
+      rw [Finset.nonempty_iff_ne_empty] at H'
+      exact H' H
+    | inr H =>
+      rw [Finset.sdiff_nonempty] at pairs_diff_nonempty
+      exact pairs_diff_nonempty H
+  let i_pairs_new := Classical.choose (Finset.Nonempty.exists_mem pairs_choosable)
+  have i_pairs_new_spec : i_pairs_new ≠ ∅ ∧ i_pairs_new ⊆ f4s.i_pairs \ f4s.i_pairs_proc := by
+    let spec := Classical.choose_spec (Finset.Nonempty.exists_mem pairs_choosable)
+    simp at spec
+    exact spec
+  have i_pairs_proc_new_disj : Disjoint i_pairs_new f4s.i_pairs_proc :=
+    (Finset.subset_sdiff.mp i_pairs_new_spec.2).2
+  let ip_to_spair : Fin f4s.size × Fin f4s.size → Finset (MvPolynomial σ K) :=
+    (λ ⟨i, j⟩ =>
+      let s_pair := S_pair mo
+        (f4s.G[i]'(by rw [f4s.G_len_eq_size]; exact i.isLt))
+        (f4s.G[j]'(by rw [f4s.G_len_eq_size]; exact j.isLt))
+        (f4s.zero_not_mem_G' i (by rw [f4s.G_len_eq_size]; exact i.isLt))
+        (f4s.zero_not_mem_G' j (by rw [f4s.G_len_eq_size]; exact j.isLt))
+      { s_pair.fst, s_pair.snd })
+  let L := Finset.biUnion i_pairs_new ip_to_spair
+  have zero_not_mem_L : 0 ∉ L := by
+    simp [L, Finset.mem_biUnion, ip_to_spair, S_pair]
+    intro i j ij_mem_new
+    have gi_ne_0 : f4s.G[i.val]'(by rw [f4s.G_len_eq_size]; exact i.isLt) ≠ 0 := f4s.zero_not_mem_G' i.val _
+    have gj_ne_0 : f4s.G[j.val]'(by rw [f4s.G_len_eq_size]; exact j.isLt) ≠ 0 := f4s.zero_not_mem_G' j.val _
+    constructor
+    · exact ⟨gi_ne_0, lc_not_zero mo _ gi_ne_0⟩
+    · exact ⟨gj_ne_0, lc_not_zero mo _ gj_ne_0⟩
+  have L_sub_monmul_G : ↑L ⊆ {mg | ∃ g ∈ f4s.G.toFinset, ∃ α : σ →₀ ℕ, ∃ c : K, mg = g * MvPolynomial.monomial α c} := by
+    intro p p_mem_L
+    simp
+    simp [L] at p_mem_L
+    let ⟨i, j, hij, hpij⟩ := p_mem_L
+    simp [ip_to_spair] at hpij
+    let fi := f4s.G[i]'(by rw [f4s.G_len_eq_size]; exact i.isLt)
+    let fj := f4s.G[j]'(by rw [f4s.G_len_eq_size]; exact j.isLt)
+    have fi_mem_G : fi ∈ f4s.G := by simp [fi]
+    have fj_mem_G : fj ∈ f4s.G := by simp [fj]
+    have fi_ne_0 := f4s.zero_not_mem_G' i (by rw [f4s.G_len_eq_size]; exact i.isLt)
+    have fj_ne_0 := f4s.zero_not_mem_G' j (by rw [f4s.G_len_eq_size]; exact j.isLt)
+    let lmfi := leading_monomial' mo fi fi_ne_0
+    let lmfj := leading_monomial' mo fj fj_ne_0
+    cases hpij with
+    | inl hpij1 =>
+      exists fi, fi_mem_G, (lcm_monomial lmfi lmfj - lmfi), (fi.coeff lmfi)⁻¹
+    | inr hpij2 =>
+      exists fj, fj_mem_G, (lcm_monomial lmfi lmfj - lmfj), (fj.coeff lmfj)⁻¹
+  let symb_proc_L :=
+    symbolic_preprocess mo
+      f4s.G.toFinset
+      (by rw [List.mem_toFinset]; exact f4s.zero_not_mem_G)
+      L zero_not_mem_L L_sub_monmul_G
+  let L' := symb_proc_L.H
+  let ge_L' := gaussian_elim mo L'
+  let N := ge_L'.SO
+  let N' := N.filter (λ n => ∀ l ∈ L', ¬leading_monomial mo l ≤ leading_monomial mo n)
+  have N'_subs_N : N' ⊆ N := by
+    unfold N'
+    apply Finset.filter_subset
+  let i_pairs_ext : (Fin f4s.size × Fin f4s.size) ↪ (Fin (f4s.size + N'.card) × Fin (f4s.size + N'.card)) := {
+    toFun (ip) := (Fin.castAdd N'.card ip.fst, Fin.castAdd N'.card ip.snd)
+    inj' := by unfold Function.Injective; simp
+  }
+  let size := f4s.size + N'.card
+  let G := f4s.G ++ N'.toList
+  let i_pairs := pair_set (@Finset.univ (Fin (f4s.size + N'.card)) _)
+  let i_pairs_proc := (f4s.i_pairs_proc ∪ i_pairs_new).map i_pairs_ext
+  have i_pairs_proc_subs : i_pairs_proc ⊆ i_pairs := by
+    simp [i_pairs, i_pairs_proc, pair_set, Finset.map_union, Finset.union_subset_iff]
+    constructor
+    · intro ⟨i', j'⟩
+      simp [i_pairs_ext]
+      intro i j hij hii' hjj'
+      simp [← hii', ← hjj']
+      apply f4s.i_pairs_proc_subs at hij
+      exact (f4s.i_pairs_lt (i, j)).mp hij
+    · intro ⟨i', j'⟩
+      simp [i_pairs_ext]
+      intro i j hij hii' hjj'
+      simp [← hii', ← hjj']
+      apply i_pairs_new_spec.2 at hij
+      apply Finset.sdiff_subset at hij
+      exact (f4s.i_pairs_lt (i, j)).mp hij
+  have i_pairs_card : i_pairs.card = size * (size - 1) / 2 := by
+    have : (@Finset.univ (Fin (f4s.size + N'.card)) _).card = size := by simp [size]
+    rw [pair_set_card (@Finset.univ (Fin (f4s.size + N'.card)) _), this]
+  -- main proof
+  simp
+  let lmi : Ideal (MvPolynomial σ K) := monomial_ideal K (leading_monomials_fin mo f4s.G.toFinset)
+  let lmi' : Ideal (MvPolynomial σ K) := monomial_ideal K (leading_monomials_fin mo G.toFinset)
+  have f4s_moni_ipcard_lex_decr' :
+    lmi < lmi' ∨
+    lmi' = lmi ∧ (i_pairs \ i_pairs_proc).card < (f4s.i_pairs \ f4s.i_pairs_proc).card := by
     cases (em (N' = ∅)) with
     | inl N'_empty =>
       have N'_list_empty : N'.toList = [] := by simp; exact N'_empty
       have N'_card_0 : N'.card = 0 := by rw [N'_empty]; simp
       apply Or.inr
       constructor
-      · unfold lmi_G lmi_f4s_G G
+      · unfold lmi' lmi G
         simp [N'_list_empty]
       · rw [Finset.card_sdiff i_pairs_proc_subs, Finset.card_sdiff f4s.i_pairs_proc_subs]
         have hc1 : i_pairs.card = f4s.i_pairs.card := by
@@ -1096,7 +1596,7 @@ decreasing_by
       apply Or.inl
       rw [lt_iff_le_and_ne]
       constructor
-      · unfold lmi_f4s_G lmi_G monomial_ideal
+      · unfold lmi lmi' monomial_ideal
         apply Ideal.span_mono
         apply Set.image_subset (λ s => (MvPolynomial.monomial s) 1)
         rw [Finset.coe_subset]
@@ -1107,9 +1607,9 @@ decreasing_by
         have lm_N'_mem_not_mem (n) (hnN' : n ∈ N')
           : let lmn := leading_monomial' mo n (ne_of_mem_of_not_mem hnN' zero_not_mem_N')
             let xlmn := MvPolynomial.monomial lmn (1 : K)
-            xlmn ∈ lmi_G ∧ xlmn ∉ lmi_f4s_G := by
+            xlmn ∈ lmi' ∧ xlmn ∉ lmi := by
           constructor
-          · unfold lmi_G monomial_ideal
+          · unfold lmi' monomial_ideal
             have lm'_n_mem
               : leading_monomial' mo n (ne_of_mem_of_not_mem hnN' zero_not_mem_N')
               ∈ leading_monomials_fin mo G.toFinset := by
@@ -1125,7 +1625,7 @@ decreasing_by
             exact lm'_n_mem
           · by_contra lm'_n_mem
             simp [
-              lmi_f4s_G,
+              lmi,
               mon_mem_moni_iff (leading_monomial' mo n (ne_of_mem_of_not_mem hnN' zero_not_mem_N')) (leading_monomials_fin mo f4s.G.toFinset)
             ] at lm'_n_mem
             let ⟨μ, hμG, hμn⟩ := lm'_n_mem
@@ -1142,8 +1642,7 @@ decreasing_by
             have ν_done : ν ∈ symb_proc_L.done_mons := by
               rw [symbolic_preprocess_done_mons mo
                   f4s.G.toFinset (by rw [List.mem_toFinset]; exact f4s.zero_not_mem_G)
-                  (L.erase 0) (by simp)
-                  L_sub_ideal_G,
+                  L zero_not_mem_L L_sub_monmul_G,
                   ← ge_L'.monset_fixed, gaussian_elim_SI_empty mo L']
               simp
               unfold N at hnN
@@ -1161,7 +1660,7 @@ decreasing_by
                   ← lm_coe_lm' mo g g_ne_0, ← lm_coe_lm' mo n n_ne_0] at hμn
               exact hμn
             let key := key ⟨g, List.mem_toFinset.mpr hgG, key'⟩
-            rcases key with ⟨f, hfG, π, c, c_ne_0, πcf_mul_mem, πcf_mul_lm⟩
+            rcases key with ⟨f, hfG, π, πcf_mul_mem, πcf_mul_lm⟩
             simp [N', L'] at hnN'
             let hnL' := hnN'.2 _ πcf_mul_mem
             rw [πcf_mul_lm] at hnL'
@@ -1172,16 +1671,34 @@ decreasing_by
         have hn : n ∈ N' := Classical.choose_spec (Finset.Nonempty.exists_mem (Finset.nonempty_of_ne_empty N'_nonempty))
         let ⟨key_1, key_2⟩ := lm_N'_mem_not_mem n hn
         exact (ne_of_mem_of_not_mem' key_1 key_2).symm
-  unfold WellFoundedRelation.rel imv_nat_wf IsWellFounded.toWellFoundedRelation
-  simp
+  unfold f4s_lex_prod
   rw [Prod.lex_def]
   simp only [Prod.fst, Prod.snd, pair_set]
-  simp [
-    lmi_f4s_G, lmi_G, i_pairs, i_pairs_proc,
-    G, N', N, L', ge_L', symb_proc_L, L,
-    i_pairs_new, pair_set, i_pairs_ext
-  ] at f4s_moni_ipcard_lex_decr
-  exact f4s_moni_ipcard_lex_decr
+  have G_eq : (F4_step mo I f4s full_proc).G = G := by
+    unfold F4_step
+    simp [G, N', N, L', ge_L', symb_proc_L, L, i_pairs_new, ip_to_spair]
+  have card_eq
+    : ((F4_step mo I f4s full_proc).i_pairs \ (F4_step mo I f4s full_proc).i_pairs_proc).card
+    = (i_pairs \ i_pairs_proc).card := by
+    unfold F4_step i_pairs i_pairs_proc i_pairs_ext
+    simp [G, N', N, L', ge_L', symb_proc_L, L, i_pairs_new, ip_to_spair]
+  rw [G_eq, card_eq]
+  unfold lmi lmi' at f4s_moni_ipcard_lex_decr'
+  exact f4s_moni_ipcard_lex_decr'
+
+noncomputable def F4_rec {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (I : Ideal (MvPolynomial σ K))
+  (f4s : F4Struct mo I) : F4Struct mo I :=
+  if full_proc : f4s.i_pairs = f4s.i_pairs_proc
+    then f4s -- terminates when all the index pairs are processed
+    else F4_rec mo I (F4_step mo I f4s full_proc)
+termination_by
+  ((monomial_ideal K (leading_monomials_fin mo f4s.G.toFinset) : Ideal (MvPolynomial σ K)),
+   Finset.card (f4s.i_pairs \ f4s.i_pairs_proc))
+decreasing_by
+  unfold WellFoundedRelation.rel imv_nat_wf IsWellFounded.toWellFoundedRelation
+  simp
+  apply f4s_moni_ipcard_lex_decr mo I f4s full_proc
 
 /-
 B가 줄거나 ⟨LM(G)⟩가 늘거나
@@ -1197,7 +1714,7 @@ Finset (ℕ × ℕ) (i_pairs_r, w/ inclusion | size) -- 그렇지 않다면 이�
 
 -- set_option maxHeartbeats 5000000
 -- #count_heartbeats in
-noncomputable def F4 {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+noncomputable def F4_init {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (F : Finset (MvPolynomial σ K)) (hF : 0 ∉ F)
   : F4Struct mo
     (Ideal.span F : Ideal (MvPolynomial σ K)) :=
@@ -1216,7 +1733,7 @@ noncomputable def F4 {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [Deci
         rw [← Finset.mem_toList]
         simp
       exact ne_of_mem_of_not_mem this hF
-  F4_rec mo I {
+  {
     size := F.card
     G := F.toList
     G_len_eq_size := by simp
@@ -1237,13 +1754,11 @@ noncomputable def F4 {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [Deci
     i_pairs_lt := by
       intro ⟨i, j⟩
       unfold init_i_pairs pair_set
-      intro ij_mem
       simp_all
     i_pairs_card := by
       have : (@Finset.univ (Fin F.card) _).card = F.card := by simp
       rw [pair_set_card (@Finset.univ (Fin F.card) _), this]
     span_ideal := by
-      unfold I
       apply ideal_span_eq_of_eq
       simp
     sat_buchberger := by
@@ -1251,3 +1766,113 @@ noncomputable def F4 {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [Deci
       by_contra _
       exact Finset.notMem_empty _ H
   }
+
+noncomputable def F4 {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (F : Finset (MvPolynomial σ K)) (hF : 0 ∉ F)
+  : F4Struct mo (Ideal.span F : Ideal (MvPolynomial σ K)) :=
+  F4_rec mo (Ideal.span F : Ideal (MvPolynomial σ K)) (F4_init mo F hF)
+
+lemma F4_rec_full_proc {σ K : Type*} [hσ : Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (I : Ideal (MvPolynomial σ K))
+  : ∀ f4s_lexp : Ideal (MvPolynomial σ K) × ℕ,
+    ∀ f4s : F4Struct mo I,
+      f4s_lex_prod mo I f4s = f4s_lexp →
+      (F4_rec mo I f4s).i_pairs = (F4_rec mo I f4s).i_pairs_proc := by
+  intro f4s_lexp
+  induction f4s_lexp using WellFounded.induction imv_nat_wf.wf with
+  | h f4s_lexp' IH =>
+    intro f4s lexp_eq
+    subst f4s_lexp'
+    rw [F4_rec]
+    cases (em (f4s.i_pairs = f4s.i_pairs_proc)) with
+    | inl full_proc =>
+      rw [dif_pos full_proc]
+      exact full_proc
+    | inr full_proc =>
+      rw [dif_neg full_proc]
+      let f4s' := F4_step mo I f4s full_proc
+      apply IH (f4s_lex_prod mo I f4s')
+      · exact f4s_moni_ipcard_lex_decr mo I f4s full_proc
+      · rfl
+  | _ => exact hσ
+
+lemma F4_full_proc {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (F : Finset (MvPolynomial σ K)) (hF : 0 ∉ F)
+  : (F4 mo F hF).i_pairs = (F4 mo F hF).i_pairs_proc := by
+  unfold F4
+  let I : Ideal (MvPolynomial σ K) := Ideal.span F
+  let f4s_init := F4_init mo F hF
+  exact F4_rec_full_proc mo I (f4s_lex_prod mo I f4s_init) f4s_init (by rfl)
+
+theorem F4_groebner {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (F : Finset (MvPolynomial σ K)) (hF : 0 ∉ F)
+  : let f4F := F4 mo F hF
+    is_groebner mo f4F.G.toFinset (Ideal.span F) := by
+  intro f4F
+  have ideal_eq := f4F.span_ideal
+  rw [groebner_iff_groebner_ideal_eq mo f4F.G.toFinset (Ideal.span ↑F) (Ideal.span ↑f4F.G.toFinset) ideal_eq]
+  rw [refined_buchberger mo f4F.G.toFinset (by simp; exact f4F.zero_not_mem_G)]
+  unfold every_S_poly_red_0
+  intro f1 f1_mem_G f2 f2_mem_G spoly spoly_ne_0
+  have f1_ne_0 : f1 ≠ 0 := ne_of_mem_of_not_mem (by simp at f1_mem_G; exact f1_mem_G) f4F.zero_not_mem_G
+  have f2_ne_0 : f2 ≠ 0 := ne_of_mem_of_not_mem (by simp at f2_mem_G; exact f2_mem_G) f4F.zero_not_mem_G
+  simp at f1_mem_G f2_mem_G
+  rw [List.mem_iff_getElem] at f1_mem_G f2_mem_G
+  rcases f1_mem_G with ⟨i, i_ran, fi_eq_f1⟩
+  rcases f2_mem_G with ⟨j, j_ran, fj_eq_f2⟩
+  have i_ne_j : i ≠ j := by
+    by_contra i_eq_j
+    subst i f1 f2
+    have spoly_eq_0 : spoly = 0 := by
+      simp [spoly, S_poly, S_pair]
+    exact spoly_ne_0 spoly_eq_0
+  let ii : Fin f4F.size := { val := i, isLt := by rw [f4F.G_len_eq_size] at i_ran; exact i_ran }
+  let jj : Fin f4F.size := { val := j, isLt := by rw [f4F.G_len_eq_size] at j_ran; exact j_ran }
+  cases ne_iff_lt_or_gt.mp i_ne_j with
+  | inl i_lt_j =>
+    have ii_lt_jj : ii < jj := by simp [ii, jj, i_lt_j]
+    have ip_mem_pairs : (ii, jj) ∈ f4F.i_pairs := by
+      simp [f4F.i_pairs_lt (ii, jj)]
+      exact ii_lt_jj
+    rw [F4_full_proc] at ip_mem_pairs
+    have key := f4F.sat_buchberger (ii, jj) ip_mem_pairs
+    simp [ii, jj] at key
+    unfold spoly
+    have spoly_eq :=
+      eq_S_poly_of_eq_eq mo
+        f1 f4F.G[i] f2 f4F.G[j]
+        fi_eq_f1.symm fj_eq_f2.symm
+        (Or.inl f1_ne_0) (Or.inl f2_ne_0)
+    have both_red_0 := red_0_of_eq mo spoly _ spoly_eq spoly_ne_0 f4F.G.toFinset
+    simp [spoly] at both_red_0 spoly_ne_0
+    rw [both_red_0]
+    apply key
+    rw [← spoly_eq]
+    exact spoly_ne_0
+  | inr i_gt_j =>
+    have jj_lt_ii : jj < ii := by simp [ii, jj, i_gt_j]
+    have ip_mem_pairs : (jj, ii) ∈ f4F.i_pairs := by
+      simp [f4F.i_pairs_lt (jj, ii)]
+      exact jj_lt_ii
+    rw [F4_full_proc] at ip_mem_pairs
+    have key := f4F.sat_buchberger (jj, ii) ip_mem_pairs
+    simp [ii, jj] at key
+    unfold spoly
+    have spoly_eq :=
+      eq_S_poly_of_eq_eq mo
+        f2 f4F.G[j] f1 f4F.G[i]
+        fj_eq_f2.symm fi_eq_f1.symm
+        (Or.inl f2_ne_0) (Or.inl f1_ne_0)
+    have spoly_neg_red_0 := red_0_iff_neg_red_0 mo _ spoly_ne_0 f4F.G.toFinset
+    simp [spoly] at spoly_neg_red_0
+    have spoly_swap := S_poly_neg_of_swap mo f1 f2 f1_ne_0 f2_ne_0
+    rw [spoly_neg_red_0]
+    have red_0_spoly_eq :=
+      red_0_of_eq mo _ _ spoly_swap.symm
+        (by unfold spoly at spoly_ne_0; rw [← neg_ne_zero] at spoly_ne_0; exact spoly_ne_0) f4F.G.toFinset
+    simp at red_0_spoly_eq spoly_eq
+    rw [red_0_spoly_eq]
+    subst spoly f1 f2
+    simp [← neg_eq_iff_eq_neg] at spoly_swap
+    rw [← spoly_swap, neg_ne_zero] at spoly_ne_0
+    exact key spoly_ne_0

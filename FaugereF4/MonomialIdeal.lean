@@ -185,6 +185,14 @@ def lcm_monomial {σ : Type*} [DecidableEq σ] (m1 m2 : σ →₀ ℕ) : σ →�
       simp_all
 }
 
+lemma lcm_monomial_comm {σ : Type*} [DecidableEq σ] (m1 m2 : σ →₀ ℕ) :
+  lcm_monomial m1 m2 = lcm_monomial m2 m1 := by
+  unfold lcm_monomial
+  simp
+  constructor
+  · exact Finset.union_comm _ _
+  · ext x
+    exact max_comm _ _
 
 /-- The maximum monomial of `S : Finset (σ →₀ ℕ)`, under given monomial order `mo`. -/
 def max_monomial {σ : Type*} [DecidableEq σ]
@@ -264,6 +272,13 @@ A nonzero-polynomial variant of `lm_smul_eq_lm`. -/
 lemma lm'_smul_eq_lm' {σ R : Type*} [DecidableEq σ] [CommSemiring R] [IsDomain R]
   (mo : MonomialOrder σ) (f : MvPolynomial σ R) (f_not_0 : f ≠ 0) (c : R) (c_not_0 : c ≠ 0) :
   leading_monomial' mo f f_not_0 = leading_monomial' mo (c • f) (smul_ne_zero c_not_0 f_not_0) := by
+  unfold leading_monomial'
+  unfold max_monomial'
+  simp_all
+
+lemma lm'_neg_eq_lm' {σ R : Type*} [DecidableEq σ] [CommRing R]
+  (mo : MonomialOrder σ) (f : MvPolynomial σ R) (f_not_0 : f ≠ 0) :
+  leading_monomial' mo f f_not_0 = leading_monomial' mo (-f) (neg_ne_zero.mpr f_not_0) := by
   unfold leading_monomial'
   unfold max_monomial'
   simp_all
@@ -387,6 +402,25 @@ lemma lc_not_zero {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   rw [← MvPolynomial.mem_support_iff]
   apply lm'_mem
 
+lemma coeff_zero_of_lt_lm {σ R : Type*} [DecidableEq σ] [CommSemiring R]
+  (mo : MonomialOrder σ) (f g : MvPolynomial σ R) (g_ne_0 : g ≠ 0)
+  : let lmg := leading_monomial' mo g g_ne_0
+    WithBot.map mo.toSyn (leading_monomial mo f) < mo.toSyn lmg → f.coeff lmg = 0 := by
+  intro lmg lmf_lt_lmg
+  cases em (f = 0) with
+  | inl f_eq_0 => simp [f_eq_0]
+  | inr f_ne_0 =>
+    simp [lm_coe_lm' mo f f_ne_0] at lmf_lt_lmg
+    have supp_f_lt_lmg : ∀ α ∈ f.support, mo.toSyn α < mo.toSyn lmg := by
+      intro α hαf
+      have : mo.toSyn α ≤ mo.toSyn (leading_monomial' mo f f_ne_0) := by
+        apply mem_le_lm' mo f f_ne_0
+        exact hαf
+      exact lt_of_le_of_lt this lmf_lt_lmg
+    -- apply ne_of_lt at supp_f_lt_lmg
+    rw [← MvPolynomial.notMem_support_iff]
+    by_contra HC
+    exact Eq.not_lt rfl (supp_f_lt_lmg lmg HC)
 
 /-- The set of leading monomials of `f ∈ F`,
   under a given monomial order `mo`. -/
@@ -1001,23 +1035,6 @@ lemma mon_mem_moni_iff {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Fi
     · exact hμM
     · rw [@mem_monmul_supp_iff σ K]
       exists φ ((MvPolynomial.monomial μ) 1)
-    /-
-    let sum_supp_subs := @MvPolynomial.support_sum K σ _ _ _ S sum_fun
-    simp at sum_supp_subs
-    apply MvPolynomial.support_sum at ν_sum_supp
-    simp at hsumS
-    -/
-    -- intro hνM
-    /-
-    rw [Finsupp.mem_span_iff_linearCombination]
-    intro ⟨l, hMlν⟩
-    simp [Finsupp.linearCombination_apply_of_mem_supported (MvPolynomial σ K)] at hMlν
-    -/
-    /-
-    simp [Finsupp.linearCombination_apply (MvPolynomial σ K) l] at hMlν
-    have hl : l.support ⊆ M.map { toFun := λ s => (MvPolynomial.monomial s) (1 : K), inj' :=  }
-    rw [Finsupp.sum_of_support_subset l] at hMlν
-    -/
   · -- (<==)
     intro ⟨μ, hμ, hμν⟩
     let δ := ν - μ
