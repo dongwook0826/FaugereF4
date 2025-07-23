@@ -1,15 +1,28 @@
 import Mathlib
--- import FaugereF4.MvPolyIdealBasic
 import FaugereF4.MonomialIdeal
 import FaugereF4.GaussianElim
 
-def is_groebner {σ K : Type*} [DecidableEq σ] [Field K] -- [DecidableEq K]
+/-!
+# Groebner basis and (refined) Buchberger criterion
+
+This file formalizes Groebner basis and a refined version of Buchberger criterion
+to decide whether a basis is Groebner. Some relevant definitions and lemmas are
+included, such as:
+- S-pair and S-polynomial of two nonzero polynomials, and
+- reduction to zero over a basis set.
+-/
+
+/-- A finite polynomial set `G` is called a Groebner basis of a polynomial ideal
+`I` (under a fixed monomial order `mo`), if `G ⊆ I` and the leading monomials
+of `I` and those of `G` generate the same ideal. -/
+def is_groebner {σ K : Type*} [DecidableEq σ] [Field K]
   (mo : MonomialOrder σ) (G : Finset (MvPolynomial σ K))
-  (I : Ideal (MvPolynomial σ K)) /-(hI : I ≠ 0)-/ : Prop :=
+  (I : Ideal (MvPolynomial σ K)) : Prop :=
   ↑G ⊆ I.carrier ∧
   monomial_ideal K (leading_monomials mo I.carrier) =
   monomial_ideal K (leading_monomials_fin mo G)
 
+/-- A rewrite lemma on `is_groebner` for equal ideals. -/
 lemma groebner_iff_groebner_ideal_eq {σ K : Type*} [DecidableEq σ] [Field K]
   (mo : MonomialOrder σ) (G : Finset (MvPolynomial σ K))
   (I J : Ideal (MvPolynomial σ K)) (hIJ : I = J)
@@ -17,6 +30,7 @@ lemma groebner_iff_groebner_ideal_eq {σ K : Type*} [DecidableEq σ] [Field K]
   unfold is_groebner
   rw [hIJ]
 
+/-- Definition of S-pair of two nonzero polynomials. -/
 noncomputable def S_pair {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (f g : MvPolynomial σ K) (hf : f ≠ 0) (hg : g ≠ 0)
   : MvPolynomial σ K × MvPolynomial σ K :=
@@ -27,11 +41,13 @@ noncomputable def S_pair {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq 
   let lcm_fg := lcm_monomial lmf lmg
   ⟨f * MvPolynomial.monomial (lcm_fg - lmf) lcf⁻¹, g * MvPolynomial.monomial (lcm_fg - lmg) lcg⁻¹⟩
 
+/-- Definition of the S-polynomial of two nonzero polynomials. -/
 noncomputable def S_poly {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (f g : MvPolynomial σ K) (hf : f ≠ 0) (hg : g ≠ 0) :=
   let ⟨p1, p2⟩ := S_pair mo f g hf hg
   p1 - p2
 
+/-- A rewrite lemma on `S-poly` for equal pairs of polynomials. -/
 lemma eq_S_poly_of_eq_eq {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (f1 f2 g1 g2 : MvPolynomial σ K)
   (f_eq : f1 = f2) (g_eq : g1 = g2)
@@ -45,12 +61,17 @@ lemma eq_S_poly_of_eq_eq {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq 
   subst f2 g2
   simp
 
+/-- Swapping the two polynomial inputs in `S-poly` is equivalent to negating. -/
 lemma S_poly_neg_of_swap {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (f g : MvPolynomial σ K) (hf : f ≠ 0) (hg : g ≠ 0)
   : S_poly mo g f hg hf = -S_poly mo f g hf hg := by
   unfold S_poly S_pair
   simp [lcm_monomial_comm]
 
+/-- A polynomial `f` reduces to zero (or has a standard representation) over
+a finite polynomial set `G` (under a fixed monomial order `mo`), if `f` is a
+polynomial combination over `G` where the leading monomial of each summand doesn't
+exceed that of `f` under `mo`. -/
 def reduces_to_zero {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (f : MvPolynomial σ K) (f_ne_0 : f ≠ 0) (G : Finset (MvPolynomial σ K)) :=
   ∃ (A : MvPolynomial σ K → MvPolynomial σ K),
@@ -58,6 +79,7 @@ def reduces_to_zero {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
     ∀ g ∈ G, (hgA : (A g) * g ≠ 0) →
       mo.toSyn (leading_monomial' mo ((A g) * g) hgA) ≤ mo.toSyn (leading_monomial' mo f f_ne_0)
 
+/-- `f` reduces to zero over `G`, iff its negation reduces to zero. -/
 lemma red_0_iff_neg_red_0 {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (f : MvPolynomial σ K) (f_ne_0 : f ≠ 0) (G : Finset (MvPolynomial σ K))
   : have neg_f_ne_0 : -f ≠ 0 := neg_ne_zero.mpr f_ne_0
@@ -86,6 +108,7 @@ lemma red_0_iff_neg_red_0 {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq
       rw [← lm'_neg_eq_lm' mo (∑ g ∈ G, A g * g) (by rw [f_sum_A, neg_ne_zero] at f_ne_0; exact f_ne_0)]
       exact summand_lm_le_lmf g g_mem_G Agg_ne_0
 
+/-- A rewrite lemma on `reduces_to_zero` for equal polynomials. -/
 lemma red_0_of_eq {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (f g : MvPolynomial σ K) (f_eq_g : f = g) (f_ne_0 : f ≠ 0)
   (G : Finset (MvPolynomial σ K))
@@ -97,6 +120,8 @@ lemma red_0_of_eq {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   subst f
   rfl
 
+/-- If `f` reduces to zero over `G`, then it also reduces to zero over any
+extension of `G`. -/
 lemma red_0_on_extension {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (f : MvPolynomial σ K) (f_ne_0 : f ≠ 0)
   (G G' : Finset (MvPolynomial σ K))
@@ -109,6 +134,10 @@ lemma red_0_on_extension {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq 
   · exact f_sum_A
   · simp_all [↓reduceIte]
 
+/-- Suppose `f` already reduces to zero over `G`. Given `g ∈ G`, a monomial
+`α` and a nonzero scalar `c` such that the leading monomial of `(monomial α c) * g`
+exceeds that of `f`, we have that `f + (monomial α c) * g` also reduces to zero
+over `G`. -/
 lemma mul_basis_add_red_0 {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (G : Finset (MvPolynomial σ K))
   (g : MvPolynomial σ K) (g_mem_G : g ∈ G) (g_ne_0 : g ≠ 0)
@@ -174,34 +203,17 @@ lemma mul_basis_add_red_0 {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq
         _ ≤ mo.toSyn lmgmul := by
           exact le_of_lt lm_g_mul_gt_lmf
 
+/-- Auxiliary definition for `refined_buchberger`. -/
 def every_S_poly_red_0 {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G) :=
   ∀ f1, (hf1 : f1 ∈ G) → ∀ f2, (hf2 : f2 ∈ G) →
     let s12 := S_poly mo f1 f2 (ne_of_mem_of_not_mem hf1 hG) (ne_of_mem_of_not_mem hf2 hG)
     (hs12 : s12 ≠ 0) → reduces_to_zero mo s12 hs12 G
 
+/-- Refined Buchberger criterion: `G` is a Groebner basis (of its ideal span)
+iff every S-polynomial of two distinct polynomials in `G` reduces to zero over
+`G` itself. -/
 theorem refined_buchberger {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G) :
   is_groebner mo G (Ideal.span G) ↔ every_S_poly_red_0 mo G hG := by
   sorry
-
-
-
-/-
-TODO:
-  Multivariate division algorithm -- mathlib
-  Definition of standard representation
-  Proof of refined Buchberger's criterion, done by proving...
-  TFAE:
-    G is Groebner basis of I =>
-    ∀ f ∈ I, the residue of f by division algorithm over G is 0 =>
-    ∀ f ∈ I, f has a standard representation by G => !!!
-    G is Groebner basis of I
-Observation:
-  Groebner property of a set doesn't necessarily depend on the generated ideal
--/
-/-
-theorem groebner_iff_S_poly_red_0 {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
-  (mo : MonomialOrder σ) (G : Finset (MvPolynomial σ K)) :
-  is_groebner mo G :=
--/

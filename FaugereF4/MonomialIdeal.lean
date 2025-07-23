@@ -1,173 +1,13 @@
 import Mathlib
--- import FaugereF4.MvPolyIdealBasic
-
--- namespace MvPolynomial
 
 /-!
 # Preliminaries on monomial ideals
 
--/
-
-/- deprecated; use monomial_ideal below
-def monomialIdeal {σ R : Type*} [CommSemiring R] (s : Set (σ →₀ ℕ)) :
-  Ideal (MvPolynomial σ R) :=
-  Ideal.span ((fun s => monomial s (1 : R)) '' s)
--/
-
-/-
-def commring_ACC (R : Type*) [CommRing R] :=
-  ∀ (iseq : ℕ → Ideal R), (∀ (n m : ℕ), n ≤ m → iseq n ≤ iseq m) →
-  ∃ (N : ℕ), ∀ (M : ℕ), N ≤ M → iseq N = iseq M
-
-def commring_MC (R : Type*) [CommRing R] :=
-  ∀ (S : Set (Ideal R)), S.Nonempty → ∃ J, Maximal (fun I => I ∈ S) J
-
-/-- An equivalent formulation of Noetherian ring.
-[Every ideal is finitely generated] ↔
-[Every ascending chain of ideals terminate] ↔
-[Every nonempty set of ideals has a maximal element under inclusion]. -/
-lemma noeth_FC_impl_ACC (R : Type*) [CommRing R]:
-  IsNoetherianRing R →
-  ∀ (iseq : ℕ → Ideal R), (∀ (n m : ℕ), n ≤ m → iseq n ≤ iseq m) →
-  ∃ (N : ℕ), ∀ (M : ℕ), N ≤ M → iseq N = iseq M := by
-  intro noeth iseq iseq_acc
-  unfold IsNoetherianRing at noeth
-  rw [IsNoetherian_def] at noeth
-  sorry
--/
-
-/- `noeth_acc` leads to well-foundedness of the dual order of ideal inclusion.
-... this is alrady proved in mathlib, `isNoetherian_iff'` and `IsNoetherian.wf`. -/
-
-/-
-theorem Dickson_lemma_fin (n : ℕ) : -- {σ K : Type*} [Field K] :
-  ∀ (K : Type*) [Field K], ∀ (A : Set (Fin n →₀ ℕ)), ∃ (s : Finset (Fin n →₀ ℕ)),
-  ↑s ⊆ A ∧ (@monomialIdeal (Fin n) K _ ↑s = monomialIdeal A) := by
-  intro K instK
-  induction n using Nat.strongRecOn with
-  | ind n IH =>
-    obtain _ | n := n
-    · simp_all
-      intro A
-      have mem_A : ∀ x ∈ A, x = 0 := by
-        intro hxA
-        rw [← Finsupp.support_eq_empty]
-        have fin0_sub_empty : ∀ (S : Set (Fin 0)), S = ∅ :=
-          Set.eq_empty_of_isEmpty -- simp_all의 적용을 위해 이 중간단계가 필요
-        rw [← Finset.coe_eq_empty]
-        simp_all
-      by_cases hA : A = ∅
-      · exact ⟨∅, by simp, by simp_all⟩
-      · have : A = {0} := by
-          ext x
-          constructor
-          · apply mem_A
-          · intro hx0
-            simp at hx0
-            push_neg at hA
-            have : ∃ y, y ∈ A := hA
-            let ⟨y, hyA⟩ := this
-            have : y = 0 := mem_A y hyA
-            simp_all
-        exact ⟨{0}, by simp_all, by simp_all⟩
-    · intro A
-      let SubA (d : ℕ) : Set (Fin n →₀ ℕ) :=
-        { a | (Finsupp.embDomain (Fin.succEmb n) a).update n d ∈ A }
-      let USubA (d : ℕ) : Set (Fin n →₀ ℕ) :=
-        ⋃ d' : Fin d, SubA d'
-      let Iseq (d : ℕ) := @monomialIdeal (Fin n) K _ (USubA d)
-      have USubA_seq : ∀ (d1 d2 : ℕ), d1 ≤ d2 → USubA d1 ⊆ USubA d2 := by
-        intro d1 d2 hdc
-        unfold USubA
-        simp
-        intro d1' x hxd1
-        simp
-        exists Fin.castLEOrderEmb hdc d1'
-      have Iseq_seq : ∀ (d1 d2 : ℕ), d1 ≤ d2 → Iseq d1 ≤ Iseq d2 := by
-        intro d1 d2 hdc
-        unfold Iseq
-        unfold monomialIdeal
-        apply Ideal.span_mono
-        apply Set.image_subset
-        exact USubA_seq d1 d2 hdc
-      let ⟨N, Iseq_accN⟩ := noeth_acc _ Iseq Iseq_seq
-      let fg_exists (d : ℕ) := IH n (by simp) (USubA d)
-      let fg_mons (d : ℕ) := (fg_exists d).choose
-      let fg_spec (d : ℕ) := (fg_exists d).choose_spec
-      /-
-      let S : Finset (Fin (n + 1) →₀ ℕ) :=
-        Finset.biUnion
-          (Fin (N + 1)).toFinset
-          (λ d => (λ a => (Finsupp.embDomain (Fin.succEmb n) a).update n d) '' fg_mons d)
-          -/
-      sorry
-
-/-
-finite_iff_exists_equiv_fin : σ ≃ Fin n
-Finsupp.equivCongrLeft : (σ →₀ ℕ) ≃ (Fin n →₀ ℕ)
-MvPolynomial.renameEquiv : MvPolynomial σ R ≃ₐ[R] MvPolynomial (Fin n) R
-
--/
-
-theorem Dickson_lemma_finite {σ : Type*} [inst_finite : Finite σ] :
-  ∀ (K : Type*) [Field K], ∀ (A : Set (σ →₀ ℕ)), ∃ (s : Finset (σ →₀ ℕ)),
-  ↑s ⊆ A ∧ (@monomialIdeal σ K _ ↑s = monomialIdeal A) := by
-  let ⟨n, h_eq_dec⟩ := finite_iff_exists_equiv_fin.mp inst_finite
-  let σ_fin_equiv := Classical.choice h_eq_dec
-  intro K instK A
-  let A' := Finsupp.equivMapDomain σ_fin_equiv '' A
-  let ⟨s', hcont', hgen'⟩ := @Dickson_lemma_fin n K _ A'
-  let s := Finset.map (Finsupp.mapDomainEmbedding σ_fin_equiv.symm.toEmbedding) s'
-  exists s
-  constructor
-  · rw [← Equiv.image_subset (Finsupp.equivCongrLeft σ_fin_equiv) ↑s A]
-    have s_eq : s'.toSet = ⇑(Finsupp.equivCongrLeft σ_fin_equiv) '' s.toSet := by
-      unfold s
-      simp_all
-      ext m
-      constructor
-      · intro hms'
-        simp_all
-        exact ⟨m, hms', by ext a; simp_all⟩
-      · intro hmss
-        simp_all
-        let ⟨m', hms', hmss'⟩ := hmss
-        have : m = m' := by
-          subst hmss'
-          simp_all only [A', σ_fin_equiv]
-          obtain ⟨w, hleft, hright⟩ := hmss
-          ext a
-          simp_all
-        rw [this]
-        exact hms'
-    have A_eq : A' = ⇑(Finsupp.equivCongrLeft σ_fin_equiv) '' A := by
-      unfold A'
-      simp_all
-    simp_all
-  · let mvp_equiv := MvPolynomial.renameEquiv K σ_fin_equiv
-    ext f
-    have si_mem : mvp_equiv f ∈ monomialIdeal ↑s' ↔ f ∈ monomialIdeal ↑s := by
-      unfold s
-      unfold monomialIdeal
-      -- unfold mvp_equiv
-      -- simp_all
-      -- rw [Ideal.symm_apply_mem_of_equiv_iff]
-      sorry
-    /-
-    have si_eq : monomialIdeal ↑s = Ideal.map ↑mvp_equiv.symm (monomialIdeal ↑s') := by
-      unfold s
-      unfold monomialIdeal
-      unfold Ideal.map
-      unfold Set.image
-      simp_all
-      -- rw [← Set.image_comp, ← Set.image_comp]
-      aesop?
-    have Ai_eq : monomialIdeal A = Ideal.map ↑mvp_equiv.symm (monomialIdeal A') := by
-      sorry
-    -/
-    -- unfold Ideal.span
-    simp_all
-    sorry
+This file contains concepts and facts needed for describing Groebner basis
+and associated algorithms. Some main definitions and lemmas are:
+- leading monomial and leading coefficient of a nonzero polynomial,
+- equalities and inequalities on leading monomials, related to polynomial operations, and
+- monomial ideal and its membership criterion.
 -/
 
 /-- The least common multiple of two monomial exponents. -/
@@ -185,6 +25,7 @@ def lcm_monomial {σ : Type*} [DecidableEq σ] (m1 m2 : σ →₀ ℕ) : σ →�
       simp_all
 }
 
+/-- The monomial lcm operation is commutative. -/
 lemma lcm_monomial_comm {σ : Type*} [DecidableEq σ] (m1 m2 : σ →₀ ℕ) :
   lcm_monomial m1 m2 = lcm_monomial m2 m1 := by
   unfold lcm_monomial
@@ -276,6 +117,7 @@ lemma lm'_smul_eq_lm' {σ R : Type*} [DecidableEq σ] [CommSemiring R] [IsDomain
   unfold max_monomial'
   simp_all
 
+/-- Polynomial negation fixes its leading monomial. -/
 lemma lm'_neg_eq_lm' {σ R : Type*} [DecidableEq σ] [CommRing R]
   (mo : MonomialOrder σ) (f : MvPolynomial σ R) (f_not_0 : f ≠ 0) :
   leading_monomial' mo f f_not_0 = leading_monomial' mo (-f) (neg_ne_zero.mpr f_not_0) := by
@@ -402,6 +244,7 @@ lemma lc_not_zero {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   rw [← MvPolynomial.mem_support_iff]
   apply lm'_mem
 
+/-- If LM(g) precedes LM(f), then the coefficient of f at LM(g) is zero. -/
 lemma coeff_zero_of_lt_lm {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   (mo : MonomialOrder σ) (f g : MvPolynomial σ R) (g_ne_0 : g ≠ 0)
   : let lmg := leading_monomial' mo g g_ne_0
@@ -417,52 +260,39 @@ lemma coeff_zero_of_lt_lm {σ R : Type*} [DecidableEq σ] [CommSemiring R]
         apply mem_le_lm' mo f f_ne_0
         exact hαf
       exact lt_of_le_of_lt this lmf_lt_lmg
-    -- apply ne_of_lt at supp_f_lt_lmg
     rw [← MvPolynomial.notMem_support_iff]
     by_contra HC
     exact Eq.not_lt rfl (supp_f_lt_lmg lmg HC)
 
-/-- The set of leading monomials of `f ∈ F`,
+/-- The finite set of leading monomials of `f ∈ F` for finite `F`,
   under a given monomial order `mo`. -/
 def leading_monomials_fin {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   (mo : MonomialOrder σ) (F : Finset (MvPolynomial σ R)) : Finset (σ →₀ ℕ) :=
   F.biUnion (λ (f : MvPolynomial σ R) => (leading_monomial mo f).toFinset)
 
+/-- The set of leading monomials of `f ∈ F`,
+  under a given monomial order `mo`. -/
 def leading_monomials {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   (mo : MonomialOrder σ) (F : Set (MvPolynomial σ R)) : Set (σ →₀ ℕ) :=
   ((λ (f : MvPolynomial σ R) => (leading_monomial mo f).toFinset.toSet) '' F).sUnion
 
+/-- A monomial ideal is a polynomial ideal generated by some set of monomials. -/
 def monomial_ideal {σ : Type*} (K : Type*) [DecidableEq σ] [Field K]
   (S : Set (σ →₀ ℕ)) : Ideal (MvPolynomial σ K) :=
   Ideal.span ((fun (s : σ →₀ ℕ) => MvPolynomial.monomial s (1 : K)) '' S)
-
-/-
-def leadterm_ideal' {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K]
-  (mo : MonomialOrder σ) (S' : Set (MvPolynomial σ K)) (hS' : 0 ∉ S') :=
-  have : ∀ f ∈ S', f ≠ 0 := by
-    intro f hf hf0
-    simp_all
-  @monomial_ideal σ K _ _ _ { m : σ →₀ ℕ | ∃ f ∈ S', m = leading_monomial' mo f (this f _) }
-
-def leadterm_ideal {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K]
-  (mo : MonomialOrder σ) (S : Set (MvPolynomial σ K)) :=
-
-
-def leadterm_ideal {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K]
-  (mo : MonomialOrder σ) (I : Ideal (MvPolynomial σ K)) :=
-  @monomial_ideal σ K _ _ _ { m : σ →₀ ℕ | ∃ f ∈ I, f ≠ 0 ∧ m = leading_monomial' mo f (by trivial) }
--/
 
 /-- The set of entire monomials which appear in one of `f ∈ F`. -/
 def monomial_set {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   (F : Finset (MvPolynomial σ R)) : Finset (σ →₀ ℕ) :=
   F.biUnion MvPolynomial.support
 
+/-- The monomial set of a singleton is exactly the support of the element. -/
 lemma singleton_monset_eq_support {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   (f : MvPolynomial σ R) : monomial_set {f} = f.support := by
   unfold monomial_set
   simp
 
+/-- Taking monomial set and taking union of polynomial sets commute. -/
 lemma monomial_set_union_distrib {σ R : Type*} [DecidableEq σ] [CommSemiring R] [DecidableEq R]
   (F G : Finset (MvPolynomial σ R)) :
   monomial_set (F ∪ G) = monomial_set F ∪ monomial_set G := by
@@ -488,6 +318,7 @@ lemma monomial_set_union_distrib {σ R : Type*} [DecidableEq σ] [CommSemiring R
     · exact ⟨f, Or.inl hfF, hx⟩
     · exact ⟨g, Or.inr hgG, hx⟩
 
+/-- Zero polynomial doesn't affect a monomial set. -/
 lemma monomial_set_erase_zero {σ R : Type*} [DecidableEq σ] [CommSemiring R] [DecidableEq R]
   (F : Finset (MvPolynomial σ R)) :
   monomial_set (F.erase 0) = monomial_set F := by
@@ -512,7 +343,8 @@ theorem monomial_set_mul_monomial {σ R : Type*} [DecidableEq σ] [CommSemiring 
   simp [monomial_set]
   apply AddMonoidAlgebra.support_mul_single (f := f) (r := a) (hr := fun y => by exact IsUnit.mul_left_eq_zero ha) (x := m)
 
-
+/-- Taking maximum monomial of a set and multiplying a monomial commutes.
+This leads to `lm'_monmul_commute`. -/
 lemma maxm'_monmul_commute {σ : Type*} [DecidableEq σ]
   (mo : MonomialOrder σ) (S : Finset (σ →₀ ℕ)) (hS : S.Nonempty) (m : σ →₀ ℕ) :
   max_monomial' mo (S.map (addRightEmbedding m)) (by simp_all) = max_monomial' mo S hS + m := by
@@ -553,20 +385,8 @@ lemma maxm'_monmul_commute {σ : Type*} [DecidableEq σ]
   unfold S_syn_max' at this
   exact this
 
-/-
-lemma maxm_monmul_commute {σ : Type*} [DecidableEq σ]
-  (mo : MonomialOrder σ) (S : Finset (σ →₀ ℕ)) (m : σ →₀ ℕ) :
-  max_monomial mo (S.map (addRightEmbedding m)) = max_monomial mo S + ↑m := by
-  unfold max_monomial
-  by_cases hS : S.Nonempty
-  · -- utilize mo.iocam
-
-    sorry
-  · simp at hS
-    subst hS
-    simp_all
--/
-
+/-- A monomial multiple of a nonzero polynomial is nonzero.
+This leads to `lm'_monmul_commute`. -/
 lemma mul_mon_nonzero {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (f : MvPolynomial σ K) (f_not_0 : f ≠ 0) (m : σ →₀ ℕ) (a : K) (ha : a ≠ 0) :
   f * MvPolynomial.monomial m a ≠ 0 := by
@@ -580,6 +400,7 @@ lemma mul_mon_nonzero {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
     MvPolynomial.instNoZeroDivisors.eq_zero_or_eq_zero_of_mul_eq_zero mul_0
   simp_all
 
+/-- Taking leading monomial of a polynomial and multiplying a monomial commutes. -/
 lemma lm'_monmul_commute {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (f : MvPolynomial σ K) (f_not_0 : f ≠ 0) (m : σ →₀ ℕ) (a : K) (ha : a ≠ 0) :
   leading_monomial' mo (f * MvPolynomial.monomial m a) (mul_mon_nonzero f f_not_0 m a ha)
@@ -595,51 +416,6 @@ lemma lm'_monmul_commute {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq 
   rw [set_eq_impl_maxm'_eq]
   rw [monomial_set_mul_monomial]
   simp_all
-
-  /-
-  unfold max_monomial'
-  simp [← monset_monmul]
-  simp [← AddEquiv.apply_eq_iff_eq mo.toSyn]
-  have : monomial_set {f * MvPolynomial.monomial m a} = f.support.map (addRightEmbedding m) := by
-    simp_all only [ne_eq, isUnit_iff_ne_zero, not_false_eq_true, monomial_set_mul_monomial]
-  have : Finset.map mo.toSyn.toEmbedding (monomial_set {f * MvPolynomial.monomial m a})
-    = Finset.map mo.toSyn.toEmbedding (f.support.map (addRightEmbedding m)) := by
-    rw [this]
-  have : (Finset.map mo.toSyn.toEquiv.toEmbedding (monomial_set {f * MvPolynomial.monomial m a})).max' (by simp_all)
-    = (Finset.map mo.toSyn.toEquiv.toEmbedding (f.support.map (addRightEmbedding m))).max' (by simp_all) := by
-    simp_all
-  /- max_monomial' mo (S.map (addRightEmbedding m)) (by simp_all) = max_monomial' mo S hS + m -/
-  simp_all
-  simp_all only
-  unfold addRightEmbedding
-  unfold Finset.map
-  simp
-  apply mo.lo.le_antisymm
-  · simp_all
-
-    sorry
-  · apply Finset.le_max'
-    simp_all
-    exists leading_monomial' mo f f_not_0
-    constructor
-    · unfold leading_monomial'
-      unfold max_monomial'
-      sorry
-    ·
-      sorry
-  -/
-  /-
-  have : (f.support.map mo.toSyn.toEmbedding).max + ↑(mo.toSyn m)
-    = ((f.support.map (addRightEmbedding m)).map mo.toSyn.toEmbedding).max := by
-
-    aesop?
-
-  have : WithBot.map mo.toSyn.invFun (f.support.map mo.toSyn.toEmbedding).max + ↑m
-    = WithBot.map mo.toSyn.invFun ((f.support.map (addRightEmbedding m)).map mo.toSyn.toEmbedding).max := by
-
-    aesop?
-  simp_all only [monomial_set_mul_monomial, AddEquiv.toEquiv_eq_coe, Equiv.invFun_as_coe, AddEquiv.coe_toEquiv_symm]
-  -/
 
 /-- The monomial set of some union equals the union of corresponding monomial sets. -/
 lemma union_monset_commute {σ R : Type*} [DecidableEq σ] [CommSemiring R] [DecidableEq R]
@@ -684,6 +460,7 @@ lemma union_monset_commute {σ R : Type*} [DecidableEq σ] [CommSemiring R] [Dec
           exact left
         · simp_all only [not_false_eq_true]
 
+/-- Cancelation rule of monomial division and multiplication. -/
 @[simp]
 lemma monomial_sub_add {σ : Type*} (m n : σ →₀ ℕ) (hmn : m ≤ n) :
   n - m + m = n := by
@@ -692,6 +469,8 @@ lemma monomial_sub_add {σ : Type*} (m n : σ →₀ ℕ) (hmn : m ≤ n) :
   have : m s ≤ n s := by apply hmn
   simp_all only [Nat.sub_add_cancel]
 
+/-- `WithBot`-coercion can be peeled off in divisibility relation, given the
+less-eq side is nonzero. -/
 lemma nonzero_lm'_div_impl_lm_div {σ R : Type*} [Finite σ] [DecidableEq σ] [CommSemiring R]
   (mo : MonomialOrder σ) (f : MvPolynomial σ R) (f_not_0 : f ≠ 0) (m : σ →₀ ℕ) :
   leading_monomial mo f ≤ m → leading_monomial' mo f f_not_0 ≤ m := by
@@ -704,262 +483,6 @@ lemma nonzero_lm'_div_impl_lm_div {σ R : Type*} [Finite σ] [DecidableEq σ] [C
     rw [← WithBot.map_coe, Finset.coe_max']
     simp_all only [ne_eq, AddEquiv.toEquiv_eq_coe, Equiv.invFun_as_coe, AddEquiv.coe_toEquiv_symm]
   simp_all only [WithBot.coe_le_coe]
-
-lemma lm_mem_supp {σ R : Type*} [Finite σ] [DecidableEq σ] [CommSemiring R]
-  (mo : MonomialOrder σ) (f : MvPolynomial σ R) (f_not_0 : f ≠ 0) :
-  leading_monomial' mo f f_not_0 ∈ f.support := by
-  unfold leading_monomial'
-  unfold max_monomial'
-  rw [← Finset.mem_map' mo.toSyn.toEmbedding]
-  -- simp only [Equiv.coe_toEmbedding, mo.toSyn.left_inv, mo.toSyn.right_inv]
-  have (m) : mo.toSyn.toEmbedding (mo.toSyn.invFun m) = m := by
-    simp_all only [ne_eq, AddEquiv.toEquiv_eq_coe, Equiv.invFun_as_coe, AddEquiv.coe_toEquiv_symm,
-      Equiv.coe_toEmbedding, EquivLike.coe_coe, AddEquiv.apply_symm_apply]
-  rw [this]
-  apply Finset.max'_mem
-
-
-/-
-noncomputable def add_mon {σ : Type*} [Finite σ] [DecidableEq σ] (m : σ →₀ ℕ)
-  : (σ →₀ ℕ) ↪ σ →₀ ℕ := {
-    toFun := λ n => m + n
-    inj' := by unfold Function.Injective; simp
-  }
--/
-
-lemma mvpoly_mul_coeff {σ : Type*} {R : Type*} [Finite σ] [DecidableEq σ] [CommSemiring R] [DecidableEq R]
-  (f g : MvPolynomial σ R) (m : σ →₀ ℕ) :
-  (f * g).coeff m = ∑ (nf ∈ f.support) (ng ∈ g.support) with nf + ng = m, f.coeff nf * g.coeff ng := by
-  rw [MvPolynomial.coeff_mul]
-  let antidiag_supp := {x ∈ f.support ×ˢ g.support | match x with | (nf, ng) => nf + ng = m}
-  have : antidiag_supp ⊆ Finset.antidiagonal m := by
-    unfold antidiag_supp
-    intro x
-    intro hx
-    simp_all only [Finset.mem_filter, Finset.mem_product, MvPolynomial.mem_support_iff, ne_eq,
-      Finset.mem_antidiagonal]
-
-  rw [Finset.antidiagonal]
-  /-
-  rw [@Finsupp.instHasAntidiagonal.mem_antidiagonal m _]
-
-  simp_all
-  rw [MvPolynomial.mul_def]
-  unfold Finsupp.sum
-  rw [MvPolynomial.coeff_sum]
-
-  rw [Fintype.sum_prod_type']
-  rw [MvPolynomial.coeff_sum g.support (λ x_1 => (MvPolynomial.monomial (x + x_1)) (f.coeff x * g.coeff x_1)) m]
-  -/
-  sorry
-
-
-
-lemma add_mon_supp {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
-  (f : MvPolynomial σ K) (m : σ →₀ ℕ) :
-  -- (f * MvPolynomial.monomial m 1).support = Finset.map (add_mon m) f.support := by
-  monomial_set {f * MvPolynomial.monomial m 1} = Finset.map (add_mon m) f.support := by
-  have f_mul_mon : f * MvPolynomial.monomial m 1
-    = ∑ n ∈ f.support, MvPolynomial.monomial (n + m) (f.coeff n) := by
-    rw [MvPolynomial.as_sum f, MvPolynomial.mul_def]
-    simp
-    unfold Finsupp.sum
-    rfl
-  have coeff_shift (l) : f.coeff l = (f * MvPolynomial.monomial m 1).coeff (l + m) := by
-    rw [MvPolynomial.coeff_mul]
-    simp_all only [MvPolynomial.coeff_monomial, mul_ite, mul_one, mul_zero]
-    have : ∀ n ∈ Finset.antidiagonal (l + m), (m = n.2) ↔ n = (l, m) := by
-      intro n hn
-      simp_all only [Finset.mem_antidiagonal]
-      obtain ⟨fst, snd⟩ := n
-      simp_all only [Prod.mk.injEq]
-      constructor
-      · intro hm
-        subst hm
-        simp_all only [add_left_inj, and_self]
-      · intro hlm
-        simp_all only
-    /-
-    have : ∑ x ∈ Finset.antidiagonal (l + m), if m = x.2 then MvPolynomial.coeff x.1 f else 0
-      = ∑ x ∈ Finset.antidiagonal (l + m), if m = x.2 then MvPolynomial.coeff l f else 0 := by
-      aesop?
-      -/
-
-    /-
-    rw [Finset.sum_ite_zero (Finset.antidiagonal (l + m)) (λ n => m = n.2) this (MvPolynomial.coeff x.1 f)]
-
-    rw [f_mul_mon]
-      -/
-    by_cases hnf : l ∈ f.support
-    · sorry
-    · sorry
-  /-
-  have : Finset.map (add_mon m) f.support = {m + n | n ∈ f.support} := by
-    simp_all only [Finset.coe_map, MvPolynomial.mem_support_iff, ne_eq]
-    ext x : 1
-    simp_all only [Set.mem_image, Finset.mem_coe, MvPolynomial.mem_support_iff, ne_eq, Set.mem_setOf_eq]
-    rfl
-  have (n) : n ∈ f.support ↔ n + m ∈ (f * MvPolynomial.monomial m 1).support := by
-    rw [f_mul_mon]
-    constructor
-    · intro hnf
-
-      sorry
-    ·
-      sorry
-  have : {m + n | n ∈ f.support} = (f * MvPolynomial.monomial m 1).support := by
-    rw [f_mul_mon]
-    simp_all
-    sorry
-  rw [this]
-  -/
-  sorry
-
-
-/- m * Mon(f) = Mon(m * f) -/
-/- x^αcoeff of f = x^(a+b) coeff of (x^b * f) -/
-/-- Taking support of `MvPolynomial` and multiplying a monomial commute. -/
-lemma add_mon_supp'' {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
-  (f : MvPolynomial σ K) (m : σ →₀ ℕ) :
-  -- (f * MvPolynomial.monomial m 1).support = Finset.map (add_mon m) f.support := by
-  monomial_set {f * MvPolynomial.monomial m 1} = Finset.map (add_mon m) f.support := by
-  have f_mul_mon : f * MvPolynomial.monomial m 1
-    = ∑ n ∈ f.support, MvPolynomial.monomial (n + m) (f.coeff n) := by
-    rw [MvPolynomial.as_sum f, MvPolynomial.mul_def]
-    simp
-    unfold Finsupp.sum
-    rfl
-  -- rw [f_mul_mon]
-  ext m'
-  unfold monomial_set
-  simp
-  push_neg
-  constructor
-  · rw [f_mul_mon]
-    simp
-    intro hm'
-    have : m ≤ m' := by
-      sorry
-    unfold add_mon
-    simp
-    exists m' - m
-
-    sorry
-  · sorry
-
-/-
-  unfold add_mon
-  rw [MvPolynomial.as_sum f, MvPolynomial.mul_def]
-  unfold Finset.map
-  ext n
-  simp
-
-  sorry
--/
-lemma add_mon_supp' {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
-  (f : MvPolynomial σ K) (m : σ →₀ ℕ) :
-  monomial_set {f * MvPolynomial.monomial m 1} = Finset.map (add_mon m) f.support := by
-  unfold monomial_set
-  unfold add_mon
-  rw [MvPolynomial.as_sum f, MvPolynomial.mul_def]
-  unfold Finset.map
-  ext n
-  simp
-  unfold MvPolynomial.coeff
-  rw [Finsupp.sum_apply]
-  unfold Finsupp.sum
-  simp
-  push_neg
-  constructor
-  · intro hn
-    apply Finset.exists_ne_zero_of_sum_ne_zero at hn
-    let ⟨a, haf, ham⟩ := hn
-    exists a
-    constructor
-    · simp_all
-    · rw [← Finsupp.mem_support_iff] at ham
-      apply MvPolynomial.support_monomial_subset at ham
-      rw [add_comm]
-      simp_all
-  · intro hn
-    let ⟨a, haf, ham⟩ := hn
-    rw [add_comm] at ham
-    rw [← ham]
-    have (x) : x = a ↔ (MvPolynomial.monomial (x + m) (f.toFun x)).toFun (a + m) ≠ 0 := by
-      constructor
-      · intro hxa
-        rw [hxa]
-        have : ((MvPolynomial.monomial (a + m)) (f.toFun a)).support = {a + m} := by
-          subst hxa ham
-          simp_all only [ne_eq]
-          obtain ⟨w, h⟩ := hn
-          obtain ⟨left, right⟩ := h
-          ext a : 1
-          simp_all
-          apply Iff.intro
-          · intro a_1
-            simp_all only
-          · intro a_1
-            subst a_1
-            simp_all only [true_and]
-            exact haf
-        have : a + m ∈ ((MvPolynomial.monomial (a + m)) (f.toFun a)).support := by simp_all
-        apply MvPolynomial.mem_support_iff.mp
-        exact this
-      · intro hnz
-        have : a + m ∈ ((MvPolynomial.monomial (x + m)) (f.toFun x)).support :=
-          MvPolynomial.mem_support_iff.mpr hnz
-        have : ((MvPolynomial.monomial (x + m)) (f.toFun x)).support = {x + m} := by
-          subst ham
-          simp_all only [ne_eq, MvPolynomial.mem_support_iff, MvPolynomial.coeff_monomial, add_left_inj,
-            ite_eq_right_iff, Classical.not_imp]
-          obtain ⟨left, right⟩ := this
-          obtain ⟨w, h⟩ := hn
-          obtain ⟨left_1, right_1⟩ := h
-          subst left
-          ext a : 1
-          simp_all only [MvPolynomial.mem_support_iff, MvPolynomial.coeff_monomial, ne_eq, ite_eq_right_iff,
-            imp_false, Decidable.not_not, Finset.mem_singleton]
-          apply Iff.intro
-          · intro a_1
-            subst a_1
-            simp_all only
-          · intro a_1
-            subst a_1
-            simp_all only
-        have : a + m = x + m := by simp_all
-        subst ham
-        simp_all
-    have (x) : MvPolynomial.coeff (a + m) ((MvPolynomial.monomial (x + m)) (f.toFun x)) = if x = a then f.toFun a else 0 := by
-      have heq : x = a → MvPolynomial.coeff (a + m) ((MvPolynomial.monomial (x + m)) (f.toFun x)) = f.toFun a := by
-        intro hxa
-        rw [hxa]
-        simp
-      have hne : x ≠ a → MvPolynomial.coeff (a + m) ((MvPolynomial.monomial (x + m)) (f.toFun x)) = 0 := by
-        contrapose
-        push_neg
-        exact (this x).mpr
-      subst ham
-      simp_all only [ne_eq, MvPolynomial.coeff_monomial, add_left_inj, not_false_eq_true, ↓reduceIte,
-        Decidable.not_not, not_true_eq_false, implies_true, ite_not]
-      obtain ⟨w, h⟩ := hn
-      obtain ⟨left, right⟩ := h
-      split
-      next h => simp_all only [not_true_eq_false, IsEmpty.forall_iff]
-      next h => simp_all only [not_false_eq_true, forall_const]
-    have : ∑ x ∈ f.support, MvPolynomial.coeff (a + m) ((MvPolynomial.monomial (x + m)) (f.toFun x)) = f.toFun a := by
-      have : ∑ x ∈ f.support, MvPolynomial.coeff (a + m) ((MvPolynomial.monomial (x + m)) (f.toFun x))
-        = ∑ x ∈ f.support, if x = a then f.toFun a else 0 := by simp_all
-      -- let fthen, felse
-      sorry
-    unfold MvPolynomial.coeff at this
-
-    have : f.toFun a ≠ 0 := haf
-
-    --aesop?
-    sorry
-  -- 분배법칙 ㅇㄷ?
-
 
 /-- The set of leading monomials is contained in the set of entire monomials. -/
 lemma monset_sub_lms {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K]
@@ -987,6 +510,8 @@ lemma monset_sub_lms {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Fiel
           simp_all
         simp_all
 
+/-- A monomial `μ` divides `ν`, if and only if there exists a polynomial `f`
+such that the `μ`-multiple of `f` has `ν` as a monomial. -/
 lemma mem_monmul_supp_iff {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K]
   {μ ν : σ →₀ ℕ}
   : μ ≤ ν ↔ ∃ f : MvPolynomial σ K, ν ∈ (f * (MvPolynomial.monomial μ) 1).support := by

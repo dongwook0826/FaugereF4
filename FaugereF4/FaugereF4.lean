@@ -9,29 +9,15 @@ import FaugereF4.GroebnerBasis
 This file formalizes Faugere's F4 algorithm, which computes
 a Groebner basis of any finite-variable polynomial ideal,
 given a finite generator set.
-
-## Reference
-* [Cox, Little and O'Shea, *Ideals, varieties, and algorithms*][coxlittleoshea1997]
 -/
 
--- open Classical
--- universe u v
--- variable {σ : Type u} {K : Type v} [Finite σ] [DecidableEq σ] [Field K]
+/-! ## Symbolic preprocessing -/
 
 /-- WellFoundedRelation instance on the `WithTop syn` type of a monomial order;
 this is needed for termination proof of symbolic preprocessing. -/
 instance withtop_mo_syn_wf {σ : Type*} (mo : MonomialOrder σ) : WellFoundedRelation (WithTop mo.syn) :=
   WellFoundedLT.toWellFoundedRelation
 
-/-
-What to be shown of the result of symbolic preprocessing:
-(1) H is nondecreasing in each step
-(2) If a monomial m ∈ monomial_set H is divisible by lm(g), for some g ∈ G of
-current (initial, or possibly extended) basis set, then H itself has
-n * g (∃ monomial n) where lm(n * g) = m.
-Since the recursion continues while done_mons ⊊ Mon(H), it suffices to check
-in each step that (2) holds for monomials in done_mons.
--/
 /-- The struct to iterate through symbolic preprocessing. -/
 structure SymbProcStruct
   (σ : Type*) (K : Type*)
@@ -76,6 +62,9 @@ structure SymbProcStruct
         (MvPolynomial.monomial α 1) * g ∈ H ∧
         leading_monomial mo ((MvPolynomial.monomial α 1) * g) = m)
 
+/-- One step of symbolic preprocessing. This loop continues until the monomial set
+of `sps.H` is fully processed, i.e. each monomial in `sps.H` satisfies
+`sps.div_then_cont_mult`. -/
 noncomputable def symbolic_preprocess_step {σ K : Type*}
   [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ)
@@ -399,6 +388,8 @@ noncomputable def symbolic_preprocess_step {σ K : Type*}
             exact sps.div_then_cont_mult m this
       }
 
+/-- Termination proof for symbolic preprocessing. The monomial processed in each
+step decreases under the specified monomial order `mo`. -/
 lemma sps_last_mon_decr {σ K : Type*}
   [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ)
@@ -472,6 +463,7 @@ lemma sps_last_mon_decr {σ K : Type*}
   next h => simp_all only [mon_H, b', b]
   next h => simp_all only [mon_H, b', b]
 
+/-- Recursive definition of symbolic preprocessing. -/
 noncomputable def symbolic_preprocess_rec {σ K : Type*}
   [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ)
@@ -489,36 +481,13 @@ decreasing_by
   unfold WellFoundedRelation.rel withtop_mo_syn_wf -- WellFoundedLT.toWellFoundedRelation
   apply sps_last_mon_decr
 
-/-
-done_mons의 원소가 모두 mon_H \ done_mons의 원소보다 크다
-b'는 mon_H \ done_mons에서 뽑아낸 최대원소
-lmon은? 바로 앞단계 iter의 mon_H \ done_mons에서 뽑아낸 최대원소
-이 앞단계에서 lmon를 done_mons에 넣었으므로 lmon ∈ done_mons
-lmon을 나누는 f가 G 안에...
-있었다 => H에 f*~(s.t. lmon이 max mon)을 더함 (=> mon_H 단조증가)
-없었다 => H 그대로 유지
--/
-
-/-
-만족할 성질들:
-(1) L ⊆ H
-증가하는 집합열로서... 귀납적으로...
-(2) Mon(H) 안의 단항식들은 모두 G의 어떤 다항식의 LT로 나누어짐
-초기 H(=L)은 L의 정의상 ok, 이후 H는 추가하는 원소들의 정의로부터 ok
-
-termination proof 전략:
-f*~~에 의해 새로 mon_H에 들어오는 mon들은 b를 제외하면 모두 b보다 작다
-이미 b는 mon_H \ sps.done_mons에서 뽑아낸 최대원소
-그러니 다음 단계에서 뽑는 b는 지금 뽑는 b보다 작다
--/
-
+/-- Initial `SymbProcStruct` object to iterate through `symbolic_preprocess_rec`. -/
 def sps_init {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ)
   (G : Finset (MvPolynomial σ K))
   (H0 : Finset (MvPolynomial σ K)) (hH0 : 0 ∉ H0)
   (hGH0 : ↑H0 ⊆ {mg | ∃ g ∈ G, ∃ α : σ →₀ ℕ, ∃ c : K, mg = g * MvPolynomial.monomial α c})
   : SymbProcStruct σ K mo G H0 :=
-  -- (hGH : ↑H ⊆ (Ideal.span G : Ideal (MvPolynomial σ K)).carrier) : SymbProcStruct σ K mo G :=
   {
     H := H0
     H0_sub_H := by rfl
@@ -543,6 +512,7 @@ def sps_init {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K] [De
     div_then_cont_mult := by simp
   }
 
+/-- Wrapper definition of symbolic preprocessing. -/
 noncomputable def symbolic_preprocess {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ)
   (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G)
@@ -551,6 +521,7 @@ noncomputable def symbolic_preprocess {σ : Type*} {K : Type*} [Finite σ] [Deci
   : SymbProcStruct σ K mo G H0 :=
   symbolic_preprocess_rec mo G H0 hG (sps_init mo G H0 hH0 hGH0)
 
+/-- Auxiliary induction argument for `symbolic_preprocess_done_mons`. -/
 lemma symbolic_preprocess_rec_done_mons {σ K : Type*}
   [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ)
@@ -586,6 +557,7 @@ lemma symbolic_preprocess_rec_done_mons {σ K : Type*}
       simp [← sp_idem]
       exact IH'
 
+/-- The termination condition of `symbolic_preprocess`. -/
 lemma symbolic_preprocess_done_mons {σ K : Type*}
   [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ)
@@ -597,83 +569,6 @@ lemma symbolic_preprocess_done_mons {σ K : Type*}
   simp [symbolic_preprocess]
   exact symbolic_preprocess_rec_done_mons mo G H0 hG ⊤ (sps_init mo G H0 hH0 hGH0) (by rfl)
 
-/-
-lemma ge_symb_proc_red_0_induction {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
-  (mo : MonomialOrder σ)
-  (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G)
-  (L : Finset (MvPolynomial σ K)) (hL : 0 ∉ L)
-  (hGL : ↑L ⊆ {mg | ∃ g ∈ G, ∃ α : σ →₀ ℕ, ∃ c : K, mg = g * MvPolynomial.monomial α c})
-  : have hGLi : ↑L ⊆ (Ideal.span G : Ideal (MvPolynomial σ K)).carrier := by
-      intro l hlL
-      apply hGL at hlL
-      simp at hlL
-      rcases hlL with ⟨g, hgG, α, c, hlgαc⟩
-      rw [hlgαc]
-      have : Ideal.span {g} ≤ Ideal.span G := by
-        apply Ideal.span_mono
-        simp [hgG]
-      apply this
-      simp [Ideal.mem_span_singleton]
-    let sp_L := symbolic_preprocess mo G hG L hL hGLi
-    let ge_L' := gaussian_elim mo sp_L.H
-    let N := ge_L'.SO
-    let N' := N.filter (λ n => ∀ l ∈ sp_L.H, ¬leading_monomial mo l ≤ leading_monomial mo n)
-    ∀ μ' : mo.syn, ∀ n,
-      (n_mem_N : n ∈ N) →
-      have n_ne_0 : n ≠ 0 := ne_of_mem_of_not_mem n_mem_N ge_L'.zero_not_mem_SO
-      leading_monomial' mo n n_ne_0 = mo.toSyn.invFun μ'
-      → reduces_to_zero mo n n_ne_0 (G ∪ N') := by
-  intro hGLi sp_L ge_L' N N' μ'
-  -- let μ := mo.toSyn.invFun μ'
-  induction μ' using WellFounded.induction (@wellFounded_lt _ _ mo.wf) with
-  | h μ'_ IH =>
-    intro n n_mem_N n_ne_0 lmn_eq_μ_
-    unfold reduces_to_zero
-    cases em (n ∈ N') with
-    | inl n_mem_N' =>
-      let A : MvPolynomial σ K → MvPolynomial σ K := λ f => if f = n then 1 else 0
-      exists A
-      subst A
-      simp
-      constructor
-      · intro _ n_not_mem_N'
-        by_contra _
-        exact n_not_mem_N' n_mem_N'
-      · intro g g_mem_basis ⟨g_eq_n, g_ne_0⟩
-        subst g
-        simp
-    | inr n_not_mem_N' =>
-      simp [N', n_mem_N] at n_not_mem_N'
-      rcases n_not_mem_N' with ⟨l', l'_mem_L', lml'_le_lmn⟩
-      have L'_key := sp_L.div_then_cont_mult
-
-      sorry
-
-lemma ge_symb_proc_red_0 {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
-  (mo : MonomialOrder σ)
-  (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G)
-  (L : Finset (MvPolynomial σ K)) (hL : 0 ∉ L)
-  (hGL : ↑L ⊆ {mg | ∃ g ∈ G, ∃ α : σ →₀ ℕ, ∃ c : K, mg = g * MvPolynomial.monomial α c})
-  : have hGLi : ↑L ⊆ (Ideal.span G : Ideal (MvPolynomial σ K)).carrier := by
-      intro l hlL
-      apply hGL at hlL
-      simp at hlL
-      rcases hlL with ⟨g, hgG, α, c, hlgαc⟩
-      rw [hlgαc]
-      have : Ideal.span {g} ≤ Ideal.span G := by
-        apply Ideal.span_mono
-        simp [hgG]
-      apply this
-      simp [Ideal.mem_span_singleton]
-    let sp_L := symbolic_preprocess mo G hG L hL hGLi
-    let ge_L' := gaussian_elim mo sp_L.H
-    let N := ge_L'.SO
-    let N' := N.filter (λ n => ∀ l ∈ sp_L.H, ¬leading_monomial mo l ≤ leading_monomial mo n)
-    ∀ n, (n_mem_N : n ∈ N) → reduces_to_zero mo n (ne_of_mem_of_not_mem n_mem_N ge_L'.zero_not_mem_SO) (G ∪ N') := by
-  intro hGLi sp_L ge_L' N N' n n_mem_N
-  have n_ne_0 : n ≠ 0 := ne_of_mem_of_not_mem n_mem_N ge_L'.zero_not_mem_SO
-  exact ge_symb_proc_red_0_induction mo G hG L hL hGL (mo.toSyn (leading_monomial' mo n n_ne_0)) n n_mem_N (by simp)
--/
 
 lemma span_ge_symb_proc_red_0_induction {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ)
@@ -973,7 +868,15 @@ lemma span_ge_symb_proc_red_0_induction {σ K : Type*} [Finite σ] [DecidableEq 
         have key' := red_0_of_eq mo f _ this f_ne_0 (G ∪ N')
         exact key'.mpr key
 
+/-- A key step for `F4Struct.sat_buchberger`. Suppose the setting of F4 where:
+- $G$: basis set in previous step
+- $L$: a finite subset of $\{x^\alpha g \mid g \in G, \alpha \in \mathbb{Z}_{\ge 0}^i\}$
+- $L'$: the result of symbolic preprocess on $L$; this is still a finite subset of $\{x^\alpha g \mid g \in G, \alpha \in \mathbb{Z}_{\ge 0}^i\}$.
+- $N$: the Gaussian elimination result of $L'$
+- $N'$: $\{n ∈ N ∣ \exist\, l ∈ L', \mathrm{LM}(l) \mid \mathrm{LM}(n)\}$
 
+Then any nonzero $f \in \left< L' \right>_K = \left< N \right>_K$ reduces to 0
+over $G \cup N'$. -/
 lemma span_ge_symb_proc_red_0 {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ)
   (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G)
@@ -985,8 +888,10 @@ lemma span_ge_symb_proc_red_0 {σ K : Type*} [Finite σ] [DecidableEq σ] [Field
     let N' := N.filter (λ n => ∀ l ∈ sp_L.H, ¬leading_monomial mo l ≤ leading_monomial mo n)
     let V : Submodule K (MvPolynomial σ K) := Submodule.span K sp_L.H
     ∀ f ∈ V, (f_ne_0 : f ≠ 0) → reduces_to_zero mo f f_ne_0 (G ∪ N') := by
-  intro /-hGLi-/ sp_L ge_L' N N' V f f_mem_span f_ne_0
+  intro sp_L ge_L' N N' V f f_mem_span f_ne_0
   exact span_ge_symb_proc_red_0_induction mo G hG L hL hGL (mo.toSyn (leading_monomial' mo f f_ne_0)) f f_mem_span f_ne_0 (by simp)
+
+/-! ## F4 algorithm -/
 
 /-- The struct to iterate through F4. -/
 structure F4Struct {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
@@ -1140,14 +1045,18 @@ instance imv_nat_wf {σ K : Type*} [Finite σ] [Field K]
   : WellFoundedRelation (Ideal (MvPolynomial σ K) × ℕ) :=
   (@Prod.Lex.instIsWellFounded (Ideal (MvPolynomial σ K)) ℕ (· > ·) (· < ·) _ _).toWellFoundedRelation
 
+/-- An object defined by the fields within `F4Struct`, which is well-founded by
+`imv_nat_wf` under the F4 algorithm. -/
 def f4s_lex_prod {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (I : Ideal (MvPolynomial σ K)) (f4s : F4Struct mo I)
   : Ideal (MvPolynomial σ K) × ℕ :=
   (monomial_ideal K (leading_monomials_fin mo f4s.G.toFinset),
    (f4s.i_pairs \ f4s.i_pairs_proc).card)
 
-set_option maxHeartbeats 1000000 -- requires slightly more than 200000 heartbeats
+set_option maxHeartbeats 400000 -- requires slightly more than 200000 heartbeats
 #count_heartbeats in
+/-- One step of F4. The loop continues as long as `f4s.i_pairs ≠ f4s.i_pairs_proc`,
+i.e. there still exists a pair of polynomials whose S-pair isn't processed yet. -/
 noncomputable def F4_step {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (I : Ideal (MvPolynomial σ K))
   (f4s : F4Struct mo I) (full_proc : ¬f4s.i_pairs = f4s.i_pairs_proc)
@@ -1452,6 +1361,9 @@ noncomputable def F4_step {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] 
           spoly_ij spoly_ij_mem_V spoly_ij_ne_0
   }
 
+/-- Termination proof for F4. `f4s_lex_prod` decreases strictly after each step
+of F4, i.e. the ideal generated leading monomials of `f4s.G` increases monotonely;
+if it doesn't change, then the size of `f4s.i_pairs \ f4s.i_pairs_proc` decreases strictly. -/
 lemma f4s_moni_ipcard_lex_decr {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (I : Ideal (MvPolynomial σ K))
   (f4s : F4Struct mo I) (full_proc : ¬f4s.i_pairs = f4s.i_pairs_proc)
@@ -1460,7 +1372,7 @@ lemma f4s_moni_ipcard_lex_decr {σ K : Type*} [Finite σ] [DecidableEq σ] [Fiel
     let lmi : Ideal (MvPolynomial σ K) := monomial_ideal K (leading_monomials_fin mo f4s.G.toFinset)
     let lmi' : Ideal (MvPolynomial σ K) := monomial_ideal K (leading_monomials_fin mo f4s'.G.toFinset)
     lmi < lmi' ∨
-    lmi' = lmi ∧ (f4s'.i_pairs \ f4s'.i_pairs_proc).card < (f4s.i_pairs \ f4s.i_pairs_proc).card := by
+    lmi' = lmi ∧ (f4s'.i_pairs \ f4s'.i_pairs_proc).card < (f4s.i_pairs \ f4s.i_pairs_proc).card
     -/
     Prod.Lex (· > ·) (· < ·) (f4s_lex_prod mo I f4s') (f4s_lex_prod mo I f4s) := by
   have pairs_diff_nonempty : (f4s.i_pairs \ f4s.i_pairs_proc).Nonempty := by
@@ -1700,20 +1612,7 @@ decreasing_by
   simp
   apply f4s_moni_ipcard_lex_decr mo I f4s full_proc
 
-/-
-B가 줄거나 ⟨LM(G)⟩가 늘거나
-(B가 줄면 G가 extend되지 않았다는 뜻이므로 ⟨LM(G)⟩는 유지됨
-B가 늘면 이는 G가 extend되었기 때문으로, 곧 ⟨LM(G)⟩가 커졌음을 의미)
-
-Ideal (⟨LM(G)⟩, w/ inclusion) -- 이쪽이 증가한다
-× (Prod.Lex.instIsWellFounded)
-Finset (ℕ × ℕ) (i_pairs_r, w/ inclusion | size) -- 그렇지 않다면 이쪽이 감소한다
--/
-
-/- n : ℕ Fin n →₀ α -/
-
--- set_option maxHeartbeats 5000000
--- #count_heartbeats in
+/-- Initial `F4Struct` object to iterate through `F4_rec`. -/
 noncomputable def F4_init {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (F : Finset (MvPolynomial σ K)) (hF : 0 ∉ F)
   : F4Struct mo
@@ -1767,11 +1666,13 @@ noncomputable def F4_init {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] 
       exact Finset.notMem_empty _ H
   }
 
+/-- Wrapper definition of F4 algorithm. -/
 noncomputable def F4 {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (F : Finset (MvPolynomial σ K)) (hF : 0 ∉ F)
   : F4Struct mo (Ideal.span F : Ideal (MvPolynomial σ K)) :=
   F4_rec mo (Ideal.span F : Ideal (MvPolynomial σ K)) (F4_init mo F hF)
 
+/-- Auxiliary induction argument for `F4_full_proc`. -/
 lemma F4_rec_full_proc {σ K : Type*} [hσ : Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (I : Ideal (MvPolynomial σ K))
   : ∀ f4s_lexp : Ideal (MvPolynomial σ K) × ℕ,
@@ -1796,6 +1697,7 @@ lemma F4_rec_full_proc {σ K : Type*} [hσ : Finite σ] [DecidableEq σ] [Field 
       · rfl
   | _ => exact hσ
 
+/-- The termination condition of `F4`. -/
 lemma F4_full_proc {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (F : Finset (MvPolynomial σ K)) (hF : 0 ∉ F)
   : (F4 mo F hF).i_pairs = (F4 mo F hF).i_pairs_proc := by
@@ -1804,6 +1706,9 @@ lemma F4_full_proc {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [Decida
   let f4s_init := F4_init mo F hF
   exact F4_rec_full_proc mo I (f4s_lex_prod mo I f4s_init) f4s_init (by rfl)
 
+/-- The main theorem on F4 algorithm. The resulting extended basis of F4 satisfies
+the refined Buchberger criterion, hence is a Groebner basis of the ideal spanned
+by the original basis set. -/
 theorem F4_groebner {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (F : Finset (MvPolynomial σ K)) (hF : 0 ∉ F)
   : let f4F := F4 mo F hF

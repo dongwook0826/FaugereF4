@@ -1,8 +1,12 @@
 import Mathlib
 import FaugereF4.MonomialIdeal
 
--- MvPolynomial σ R = AddMonoidAlgebra R (σ →₀ ℕ) = (σ →₀ ℕ) →₀ R
--- Finset.orderIsoOfFin
+/-!
+# Gaussian elimination on `MvPolynomial` under a fixed `MonomialOrder`
+
+This file contains the Gaussian elimination algorithm over `MvPolynomial`,
+with monomials as basis set, ordered by `MonomialOrder`.
+-/
 
 /-
 RREF의 output에 바라는 것이 무엇인가?
@@ -22,7 +26,7 @@ output의 lead-mon'l set과 ⟨input⟩_K의 어떤 finite subset S의 lead-mon'
 - 임의의 f ∈ ⟨input⟩_K가 S 위에서도 std rep'n을 가짐
 -/
 
-/-- Information on the choice of a polynomial, in each step of Gaussian elimination.
+/-- Information on the choice of a pivot polynomial, in each step of Gaussian elimination.
 This includes the choice from a finite set `S`, its membership, non-zeroness (given `0 ∉ S`), and
 its maximality of leading monomial within `S`. -/
 structure MvPolyGEChoiceSpec {σ R : Type*} [DecidableEq σ] [CommSemiring R]
@@ -75,31 +79,46 @@ noncomputable def max_lm_poly_choice {σ R : Type*} [DecidableEq σ] [CommSemiri
       exact choice_max_lm f (by unfold L; simp; exact hf)
   }
 
-
+/-- The structure of data and loop invariants to iterate through the
+Gaussian elimination loop. -/
 structure GEStruct (σ K : Type*) [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (M : Finset (σ →₀ ℕ)) (V : Submodule K (MvPolynomial σ K)) where
-  SI : Finset (MvPolynomial σ K) -- input set of mvpoly's to process
-  SO : Finset (MvPolynomial σ K) -- output set of processed mvpoly's
+  /-- input set of polynomials to process -/
+  SI : Finset (MvPolynomial σ K)
+  /-- output set of processed polynomials -/
+  SO : Finset (MvPolynomial σ K)
+  /-- 0 is not among the input. -/
   zero_not_mem_SI : 0 ∉ SI
+  /-- 0 is not among the output. -/
   zero_not_mem_SO : 0 ∉ SO
+  /-- The monomial set involved in the loop doesn't change. -/
   monset_fixed : monomial_set (SI ∪ SO) = M
+  /-- The linear span of polynomials in process is fixed. -/
   span_V : Submodule.span K (SI ∪ SO) = V
+  /-- The leading monomials of output elements must precede those of input elements. -/
   in_lm_lt_out_lm (fi) (hfi : fi ∈ SI) (fo) (hfo : fo ∈ SO) :
     mo.toSyn (leading_monomial' mo fi (ne_of_mem_of_not_mem hfi zero_not_mem_SI))
     < mo.toSyn (leading_monomial' mo fo (ne_of_mem_of_not_mem hfo zero_not_mem_SO))
+  /-- Each output element has distinct leading monomials. -/
   out_lm_diff (f) (hfo : f ∈ SO) (g) (hgo : g ∈ SO) :
     f ≠ g →
     leading_monomial' mo f (ne_of_mem_of_not_mem hfo zero_not_mem_SO)
     ≠ leading_monomial' mo g (ne_of_mem_of_not_mem hgo zero_not_mem_SO)
+  /-- The leading monomial of an output element `fo` is no more in the monomial set
+  of input elements. -/
   out_lm_not_in_SI (fo) (hfo : fo ∈ SO) :
     leading_monomial' mo fo (ne_of_mem_of_not_mem hfo zero_not_mem_SO) ∉
     monomial_set SI
+  /-- The leading monomial of an output element `fo` is no more in the monomial set
+  of output elements with `fo` excluded. -/
   out_lm_not_in_other_SO (fo) (hfo : fo ∈ SO) :
     leading_monomial' mo fo (ne_of_mem_of_not_mem hfo zero_not_mem_SO) ∉
     monomial_set (SO.erase fo)
+  /-- The leading coefficients of output elements are adjusted to 1. -/
   out_lc_one (fo) (hfo : fo ∈ SO) :
     leading_coeff' mo fo (ne_of_mem_of_not_mem hfo zero_not_mem_SO) = 1
 
+/-- This eliminates the leading monomial of pivot `p` from the elements in `S`. -/
 noncomputable def eliminate_lead_term {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (S : Finset (MvPolynomial σ K))
   (p : MvPolynomial σ K) (hp : p ≠ 0) : Finset (MvPolynomial σ K) :=
@@ -108,6 +127,8 @@ noncomputable def eliminate_lead_term {σ K : Type*} [DecidableEq σ] [Field K] 
   let p1 := lcp⁻¹ • p
   S.image (λ f => f - (f.coeff lmp) • p1)
 
+/-- The entire monomial set of pivot and polynomial set doesn't change after
+leading monomial elimination. -/
 lemma elim_pivot_monset_eq {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (S : Finset (MvPolynomial σ K))
   (p : MvPolynomial σ K) (hp : p ≠ 0)
@@ -154,6 +175,9 @@ lemma elim_pivot_monset_eq {σ K : Type*} [DecidableEq σ] [Field K] [DecidableE
       exists p
       exact ⟨Or.inr rfl, hμg⟩
 
+/-- Leading monomial elimination monotonely decreases the size of set.
+The set size decreases if the elimination results of two distinct elements
+are equal, e.g. $x^2 + y + 1$ and $2x^2 + y + 2$ by $x^2 + 1$. -/
 lemma elim_card_le {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (S : Finset (MvPolynomial σ K))
   (p : MvPolynomial σ K) (hp : p ≠ 0)
@@ -167,6 +191,7 @@ lemma elim_card_le {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   rw [← mul_one S.card, ← Finset.biUnion_singleton]
   exact Finset.card_biUnion_le_card_mul S (λ f => {f - (f.coeff lmp) • p1}) 1 (λ f _ => this f)
 
+/-- The result of elimination is contained in the linear span of the set before elimination. -/
 lemma elim_subset_span {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (S : Finset (MvPolynomial σ K))
   (p : MvPolynomial σ K) (hp : p ≠ 0)
@@ -187,12 +212,12 @@ lemma elim_subset_span {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
     · apply Submodule.subset_span
     · simp_all only [Set.mem_insert_iff, Finset.mem_coe, true_or]
 
+/-- A polynomial set is contained in the linear span of its elimination result. -/
 lemma subset_span_elim {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (S : Finset (MvPolynomial σ K))
   (p : MvPolynomial σ K) (hp : p ≠ 0)
   : S.toSet ⊆ (Submodule.span K ({p} ∪ eliminate_lead_term mo S p hp) : Submodule K (MvPolynomial σ K)) := by
   intro g hg
-  -- unfold eliminate_lead_term
   let ec := (g.coeff (leading_monomial' mo p hp)) * (p.coeff (leading_monomial' mo p hp))⁻¹
   have g_sub_add : g = g - ec • p + ec • p := by simp
   have g_sub_mem : g - ec • p ∈ eliminate_lead_term mo S p hp := by
@@ -212,6 +237,8 @@ lemma subset_span_elim {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
     apply Or.inl
     simp
 
+/-- The linear span of a polynomial insertion is equal to that of insertion
+of a nonzero scalar multiple. -/
 lemma smul_insert_span {K M : Type*} [Field K] [AddCommMonoid M] [Module K M]
   {p : M} {s : Set M} {c : K} {hc : c ≠ 0} :
   Submodule.span K ({p} ∪ s) = Submodule.span K ({c • p} ∪ s) := by
@@ -229,6 +256,7 @@ lemma smul_insert_span {K M : Type*} [Field K] [AddCommMonoid M] [Module K M]
       rw [← hc', smul_assoc]
   rw [this]
 
+/-- One step of Gaussian elimination. The loop continues as long as `ges.SI` is nonempty. -/
 noncomputable def gaussian_elim_step {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (M : Finset (σ →₀ ℕ)) (V : Submodule K (MvPolynomial σ K))
   (ges : GEStruct σ K mo M V) (SI_nonempty : ges.SI.Nonempty) : GEStruct σ K mo M V :=
@@ -240,8 +268,9 @@ noncomputable def gaussian_elim_step {σ K : Type*} [DecidableEq σ] [Field K] [
     rw [← MvPolynomial.mem_support_iff]
     apply lm'_mem
   let pivot_1 := (pivot.coeff lm_pivot)⁻¹ • pivot
-  have lm_piv1_eq_lm_piv : leading_monomial' mo pivot_1 (smul_ne_zero (inv_ne_zero lc_pivot_ne_0) pivot_spec.choice_not_zero)
-                          = leading_monomial' mo pivot (pivot_spec.choice_not_zero) := by
+  have lm_piv1_eq_lm_piv
+    : leading_monomial' mo pivot_1 (smul_ne_zero (inv_ne_zero lc_pivot_ne_0) pivot_spec.choice_not_zero)
+    = leading_monomial' mo pivot (pivot_spec.choice_not_zero) := by
     unfold pivot_1
     unfold leading_monomial'
     simp_all
@@ -271,19 +300,6 @@ noncomputable def gaussian_elim_step {σ K : Type*} [DecidableEq σ] [Field K] [
         exact ges.zero_not_mem_SO a_mem
       let keyc := lm'_smul_eq_lm' mo pivot pivot_spec.choice_not_zero C C_not_0
       let keyc' := lm'_eq_of_eq mo a (C • pivot) ha (ne_of_mem_of_not_mem a_mem ges.zero_not_mem_SO)
-      /-
-      have keyc : leading_monomial' mo pivot pivot_spec.choice_not_zero
-                = leading_monomial' mo a (ne_of_mem_of_not_mem a_mem ges.zero_not_mem_SO) := by
-        rw [ha]
-        rcases em (a.coeff lm_pivot = 0) with h0 | h0
-        · unfold lm_pivot at h0
-          simp [h0] at ha
-          rw [ha] at a_mem
-          by_contra _
-          exact ges.zero_not_mem_SO a_mem
-        · rw [← lm_smul_eq_lm mo _ (a.coeff lm_pivot) h0]
-          rw [← lm_smul_eq_lm mo pivot _ (inv_ne_zero lc_pivot_ne_0)]
-      -/
       apply ne_of_lt at key
       rw [keyc, ← keyc'] at key
       trivial
@@ -728,6 +744,9 @@ noncomputable def gaussian_elim_step {σ K : Type*} [DecidableEq σ] [Field K] [
         exact ges.out_lc_one af af_mem
   }
 
+/-- Termination proof for Gaussian elimination. The size of `ges.SI` decreases
+by 1 in each step: popping pivot from `ges.SI` and pushing its normalization
+of leading coefficient into `ges.SO`. -/
 lemma ges_SI_card_decr  {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (M : Finset (σ →₀ ℕ)) (V : Submodule K (MvPolynomial σ K))
   (ges : GEStruct σ K mo M V) (SI_nonempty : ges.SI.Nonempty)
@@ -752,6 +771,7 @@ lemma ges_SI_card_decr  {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K
     _ ≤ (ges.SI.erase pivot).card := elim_SI_nonincr
     _ < ges.SI.card := erase_pivot_decr
 
+/-- Recursive definition of Gaussian elimination. -/
 noncomputable def gaussian_elim_rec {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (M : Finset (σ →₀ ℕ)) (V : Submodule K (MvPolynomial σ K))
   (ges : GEStruct σ K mo M V) : GEStruct σ K mo M V :=
@@ -787,6 +807,7 @@ noncomputable def gaussian_elim_rec {σ K : Type*} [DecidableEq σ] [Field K] [D
 termination_by ges.SI.card
 decreasing_by apply ges_SI_card_decr
 
+/-- Initial `GEStruct` object to iterate through `gaussian_elim_rec`. -/
 noncomputable def ges_init {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (input : Finset (MvPolynomial σ K))
   : GEStruct σ K mo (monomial_set input) (Submodule.span K input) :=
@@ -812,11 +833,13 @@ noncomputable def ges_init {σ K : Type*} [DecidableEq σ] [Field K] [DecidableE
       trivial
   }
 
+/-- Wrapper definition of Gaussian elimination. -/
 noncomputable def gaussian_elim {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (input : Finset (MvPolynomial σ K))
   : GEStruct σ K mo (monomial_set input) (Submodule.span K input) :=
   gaussian_elim_rec mo (monomial_set input) (Submodule.span K input) (ges_init mo input)
 
+/-- Auxiliary induction argument for `gaussian_elim_SI_empty`. -/
 lemma gaussian_elim_rec_SI_empty {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (M : Finset (σ →₀ ℕ)) (V : Submodule K (MvPolynomial σ K)) :
   ∀ n : ℕ, ∀ (ges : GEStruct σ K mo M V), ges.SI.card = n → (gaussian_elim_rec mo M V ges).SI = ∅ := by
@@ -834,6 +857,7 @@ lemma gaussian_elim_rec_SI_empty {σ K : Type*} [DecidableEq σ] [Field K] [Deci
     · -- Case: ¬SI.Nonempty
       simp
 
+/-- The termination condition of `gaussian_elim`. -/
 lemma gaussian_elim_SI_empty {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (input : Finset (MvPolynomial σ K)) :
   (gaussian_elim mo input).SI = ∅ := by
@@ -845,10 +869,11 @@ lemma gaussian_elim_SI_empty {σ K : Type*} [DecidableEq σ] [Field K] [Decidabl
     (ges_init mo input)
     (by rfl)
 
+/-- For any element `f ≠ 0` in the linear span `⟨H⟩_K` of finite polynomial set `H`,
+there exists `n` in the Gaussian elimination of `H` which has the same leading monomial
+with `f`. -/
 lemma mem_span_ge_exists_same_lm_mem {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (H : Finset (MvPolynomial σ K))
-  -- (G : Finset (MvPolynomial σ K))
-  -- (hGH : ↑H ⊆ {mg | ∃ g ∈ G, ∃ α : σ →₀ ℕ, mg = g * MvPolynomial.monomial α 1})
   : let ge_H := gaussian_elim mo H
     ∀ f ∈ (Submodule.span K ↑ge_H.SO : Submodule K (MvPolynomial σ K)),
       (f_ne_0 : f ≠ 0) →
