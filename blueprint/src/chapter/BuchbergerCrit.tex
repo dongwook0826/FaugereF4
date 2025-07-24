@@ -2,7 +2,7 @@
 
 \begin{definition}[Multivariate division algorithm]
     \label{def:MvDivisionAlgorithm}
-    \uses{def:LeadingMonomialTerm}
+    \uses{def:LeadingMonomialCoeff}
     ~\\
 
     Input: divisor set \(\{f_1, \cdots, f_s\}\) and dividend \(f\)
@@ -10,28 +10,28 @@
     Output: quotients \(q_1, \cdots, q_s\) and remainder \(r\)
 
     \begin{itemize}
-        \item \(\forall\,i,\,q_i := 0;\, r := 0\)
-        \item \(p := f\)
-        \item while \(p \ne 0\):
+        \item[] \(\forall\,i,\,q_i := 0;\, r := 0\)
+        \item[] \(p := f\)
+        \item[] while \(p \ne 0\):
             \begin{itemize}
-                \item \(i := 1\)
-                \item \(DivisionOccured := False\)
-                \item while \(i \le s\) and not \(DivisionOccured\):
+                \item[] \(i := 1\)
+                \item[] \(DivisionOccured := False\)
+                \item[] while \(i \le s\) and not \(DivisionOccured\):
                     \begin{itemize}
-                        \item if \(\leadterm(f_i) | \leadterm(p)\):
+                        \item[] if \(\leadterm(f_i) \mid \leadterm(p)\):
                             \begin{itemize}
-                                \item \(q_i := q_i + \leadterm(p) / \leadterm(f_i)\)
-                                \item \(p := p - (\leadterm(p) / \leadterm(f_i))f_i\)
+                                \item[] \(q_i := q_i + \leadterm(p) / \leadterm(f_i)\)
+                                \item[] \(p := p - (\leadterm(p) / \leadterm(f_i))f_i\)
                             \end{itemize}
-                        \item else:
+                        \item[] else:
                             \begin{itemize}
-                                \item \(i := i + 1\)
+                                \item[] \(i := i + 1\)
                             \end{itemize}
                     \end{itemize}
-                \item if not \(DivisionOccured\):
+                \item[] if not \(DivisionOccured\):
                     \begin{itemize}
-                        \item \(r := r + \leadterm(p)\)
-                        \item \(p := p - \leadterm(p)\)
+                        \item[] \(r := r + \leadterm(p)\)
+                        \item[] \(p := p - \leadterm(p)\)
                     \end{itemize}
             \end{itemize}
         return \(q_1, \cdots, q_s, r\)
@@ -41,7 +41,9 @@
 
 \begin{definition}[S-polynomial]
     \label{def:SPolynomial}
-    \uses{def:LeadingMonomialTerm}
+    \uses{def:LeadingMonomialCoeff}
+    \lean{S_pair, S_poly}
+    \leanok
     Define the \textbf{least common multiple} \(\gamma = \lcm(\alpha, \beta)\)
     of two monomials \(\alpha, \beta\) as \(\gamma_i = \max(\alpha_i, \beta_i)\).
     The \textbf{S-polynomial} of two polynomials \(f\) and \(g\), given a monomial order,
@@ -64,7 +66,9 @@
 
 \begin{definition}[Standard representation]
     \label{def:StandardRepresentation}
-    \uses{def:LeadingMonomialTerm}
+    \uses{def:LeadingMonomialCoeff}
+    \lean{reduces_to_zero}
+    \leanok
     For \(G = \{g_1, \cdots, g_t\} \subseteq k[x_1, \cdots, x_n]\) and \(f \in k[x_1, \cdots, x_n]\),
     a \textbf{standard representation} of \(f\) by \(G\) is, if exists, an equality
     \[f = \sum_{k=1}^t A_k g_k, \quad A_k \in k[x_1, \cdots, x_n],\]
@@ -77,6 +81,7 @@
 \begin{theorem}[Refinement of Buchberger's criterion]
     \label{thm:RefinedBuchbergerCriterion}
     \uses{def:GroebnerBasis, thm:BuchbergerCriterion, def:StandardRepresentation}
+    \lean{every_S_poly_red_0, refined_buchberger}
     Let \(I \idealle k[x_1, \cdots, x_n]\). Then a basis \(G = \{g_1, \cdots, g_t\}\)
     is a Gr\"obner basis of \(I\) iff \(S(g_i, g_j) \to_G 0\) for each pair of \(i \ne j\).
 \end{theorem}
