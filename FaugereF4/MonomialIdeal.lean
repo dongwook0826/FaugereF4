@@ -530,7 +530,7 @@ lemma mem_monmul_supp_iff {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] 
 /-- A monomial `ν` is in a monomial ideal `⟨M⟩`,
 exactly when some basis element `μ` divides the monomial `ν`. -/
 lemma mon_mem_moni_iff {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
-  (ν : σ →₀ ℕ) (M : Finset (σ →₀ ℕ))
+  (ν : σ →₀ ℕ) (M : Set (σ →₀ ℕ))
   : MvPolynomial.monomial ν 1 ∈ monomial_ideal K M ↔ ∃ μ ∈ M, μ ≤ ν := by
   constructor
   · -- (==>)
