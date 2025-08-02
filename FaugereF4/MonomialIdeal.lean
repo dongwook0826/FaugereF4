@@ -68,6 +68,13 @@ def leading_monomial {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   (mo : MonomialOrder σ) (f : MvPolynomial σ R) :=
   max_monomial mo f.support
 
+/-- The leading monomial of zero polynomial is `⊥ : WithBot (σ →₀ ℕ)`. -/
+lemma lm_zero_eq_bot {σ R : Type*} [DecidableEq σ] [CommSemiring R]
+  (mo : MonomialOrder σ)
+  : leading_monomial mo (0 : MvPolynomial σ R) = ⊥ := by
+  unfold leading_monomial max_monomial
+  simp
+
 /-- A variant of `leading_monomial`: given `f ≠ 0`, the `WithBot` can be peeled off. -/
 def leading_monomial' {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   (mo : MonomialOrder σ) (f : MvPolynomial σ R) (f_not_0 : f ≠ 0) :=
@@ -229,6 +236,69 @@ lemma lm_coe_lm' {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   unfold leading_monomial
   unfold leading_monomial'
   exact maxm_coe_maxm' mo f.support (by simp_all)
+
+/-- If the LMs of two polynomials `f1` and `f2` don't exceed the LM of `g`,
+then so does the LM of `f1 + f2`. This proves the special case where all the
+polynomials involved are nonzero. This leads to `lm_add_le_of_both_lm_le`. -/
+lemma lm'_add_le_of_both_lm'_le {σ R : Type*} [DecidableEq σ] [CommSemiring R]
+  (mo : MonomialOrder σ) (f1 f2 g : MvPolynomial σ R)
+  (f1_ne_0 : f1 ≠ 0) (f2_ne_0 : f2 ≠ 0) (fadd_ne_0 : f1 + f2 ≠ 0) (g_ne_0 : g ≠ 0)
+  (hf1g : mo.toSyn (leading_monomial' mo f1 f1_ne_0) ≤ mo.toSyn (leading_monomial' mo g g_ne_0))
+  (hf2g : mo.toSyn (leading_monomial' mo f2 f2_ne_0) ≤ mo.toSyn (leading_monomial' mo g g_ne_0))
+  : mo.toSyn (leading_monomial' mo (f1 + f2) fadd_ne_0) ≤ mo.toSyn (leading_monomial' mo g g_ne_0) := by
+  simp [leading_monomial', max_monomial']
+  simp [leading_monomial', max_monomial'] at hf1g hf2g
+  push_neg at hf1g hf2g
+  intro μ' f_μ'_coeff_add_ne_0
+  let μ := mo.toSyn.symm μ'
+  have f_coeff_ne_0 : f1.coeff μ ≠ 0 ∨ f2.coeff μ ≠ 0 := by
+    by_contra f_coeff_eq_0
+    push_neg at f_coeff_eq_0
+    rcases f_coeff_eq_0 with ⟨f1_coeff_eq_0, f2_coeff_eq_0⟩
+    subst μ
+    rw [f1_coeff_eq_0, f2_coeff_eq_0] at f_μ'_coeff_add_ne_0
+    simp at f_μ'_coeff_add_ne_0
+  cases f_coeff_ne_0 with
+  | inl f1_coeff_ne_0 =>
+    exact hf1g μ' f1_coeff_ne_0
+  | inr f2_coeff_ne_0 =>
+    exact hf2g μ' f2_coeff_ne_0
+
+/-- If the LMs of two polynomials `f1` and `f2` don't exceed the LM of `g`,
+then so does the LM of `f1 + f2`. This generalizes `lm'_add_le_of_both_lm'_le`,
+to cases in which some polynomials are zero. -/
+lemma lm_add_le_of_both_lm_le {σ R : Type*} [DecidableEq σ] [CommSemiring R]
+  (mo : MonomialOrder σ) (f1 f2 g : MvPolynomial σ R)
+  (hf1g : WithBot.map mo.toSyn (leading_monomial mo f1) ≤ WithBot.map mo.toSyn (leading_monomial mo g))
+  (hf2g : WithBot.map mo.toSyn (leading_monomial mo f2) ≤ WithBot.map mo.toSyn (leading_monomial mo g))
+  : WithBot.map mo.toSyn (leading_monomial mo (f1 + f2)) ≤ WithBot.map mo.toSyn (leading_monomial mo g) := by
+  cases em (f1 = 0) with
+  | inl f1_eq_0 =>
+    subst f1
+    simp
+    exact hf2g
+  | inr f1_ne_0 =>
+    push_neg at f1_ne_0
+    have g_ne_0 : g ≠ 0 := by
+      simp [lm_coe_lm' mo f1 f1_ne_0] at hf1g
+      by_contra g_eq_0
+      subst g
+      simp [lm_zero_eq_bot] at hf1g
+    cases em (f2 = 0) with
+    | inl f2_eq_0 =>
+      subst f2
+      simp
+      exact hf1g
+    | inr f2_ne_0 =>
+      cases em (f1 + f2 = 0) with
+      | inl fadd_eq_0 =>
+        simp [fadd_eq_0, lm_zero_eq_bot]
+      | inr fadd_ne_0 =>
+        push_neg at f2_ne_0 fadd_ne_0
+        simp [lm_coe_lm' mo (f1 + f2) fadd_ne_0, lm_coe_lm' mo g g_ne_0]
+        simp [lm_coe_lm' mo f1 f1_ne_0, lm_coe_lm' mo g g_ne_0] at hf1g
+        simp [lm_coe_lm' mo f2 f2_ne_0, lm_coe_lm' mo g g_ne_0] at hf2g
+        exact lm'_add_le_of_both_lm'_le mo f1 f2 g f1_ne_0 f2_ne_0 fadd_ne_0 g_ne_0 hf1g hf2g
 
 /-- The leading coefficient of polynomial `f`, under given monomial order `mo`.
 That is, the coefficient of leading monomial of `f`. -/
@@ -512,7 +582,7 @@ lemma monset_sub_lms {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Fiel
 
 /-- A monomial `μ` divides `ν`, if and only if there exists a polynomial `f`
 such that the `μ`-multiple of `f` has `ν` as a monomial. -/
-lemma mem_monmul_supp_iff {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K]
+lemma mem_monmul_supp_iff {σ : Type*} {K : Type*} [DecidableEq σ] [Field K]
   {μ ν : σ →₀ ℕ}
   : μ ≤ ν ↔ ∃ f : MvPolynomial σ K, ν ∈ (f * (MvPolynomial.monomial μ) 1).support := by
   constructor
@@ -529,7 +599,7 @@ lemma mem_monmul_supp_iff {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] 
 
 /-- A monomial `ν` is in a monomial ideal `⟨M⟩`,
 exactly when some basis element `μ` divides the monomial `ν`. -/
-lemma mon_mem_moni_iff {σ : Type*} {K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+lemma mon_mem_moni_iff {σ : Type*} {K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (ν : σ →₀ ℕ) (M : Set (σ →₀ ℕ))
   : MvPolynomial.monomial ν 1 ∈ monomial_ideal K M ↔ ∃ μ ∈ M, μ ≤ ν := by
   constructor
