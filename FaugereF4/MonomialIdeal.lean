@@ -25,6 +25,19 @@ def lcm_monomial {σ : Type*} [DecidableEq σ] (m1 m2 : σ →₀ ℕ) : σ →�
       simp_all
 }
 
+lemma self_lcm_monomial_eq_self {σ : Type*} [DecidableEq σ] (m : σ →₀ ℕ)
+  : lcm_monomial m m = m := by
+  ext x
+  simp [lcm_monomial]
+
+lemma le_lcm_monomial {σ : Type*} [DecidableEq σ] (m1 m2 : σ →₀ ℕ)
+  : m1 ≤ lcm_monomial m1 m2 ∧ m2 ≤ lcm_monomial m1 m2 := by
+  constructor
+  · intro x
+    simp [lcm_monomial]
+  · intro x
+    simp [lcm_monomial]
+
 /-- The monomial lcm operation is commutative. -/
 lemma lcm_monomial_comm {σ : Type*} [DecidableEq σ] (m1 m2 : σ →₀ ℕ) :
   lcm_monomial m1 m2 = lcm_monomial m2 m1 := by
@@ -36,7 +49,7 @@ lemma lcm_monomial_comm {σ : Type*} [DecidableEq σ] (m1 m2 : σ →₀ ℕ) :
     exact max_comm _ _
 
 /-- The maximum monomial of `S : Finset (σ →₀ ℕ)`, under given monomial order `mo`. -/
-def max_monomial {σ : Type*} [DecidableEq σ]
+noncomputable def max_monomial {σ : Type*} [DecidableEq σ]
   (mo : MonomialOrder σ) (S : Finset (σ →₀ ℕ)) :=
   WithBot.map mo.toSyn.invFun (Finset.map mo.toSyn S).max
 
@@ -51,9 +64,7 @@ lemma maxm'_mem {σ : Type*} [DecidableEq σ]
   max_monomial' mo S hS ∈ S := by
   unfold max_monomial'
   rw [← Finset.mem_map' mo.toSyn.toEmbedding]
-  have (x) : mo.toSyn.toEmbedding (mo.toSyn.invFun x) = x := by simp
-  rw [this]
-  apply Finset.max'_mem
+  simp [Finset.max'_mem, -Finset.mem_map_equiv]
 
 /-- Maximum monomials equal if the given two monomial sets equal. -/
 lemma set_eq_impl_maxm'_eq {σ : Type*} [DecidableEq σ]
@@ -64,7 +75,7 @@ lemma set_eq_impl_maxm'_eq {σ : Type*} [DecidableEq σ]
   simp_all
 
 /-- The leading monomial of polynomial `f`, under given monomial order `mo`. -/
-def leading_monomial {σ R : Type*} [DecidableEq σ] [CommSemiring R]
+noncomputable def leading_monomial {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   (mo : MonomialOrder σ) (f : MvPolynomial σ R) :=
   max_monomial mo f.support
 
@@ -86,6 +97,15 @@ lemma lm'_mem {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   leading_monomial' mo f f_not_0 ∈ f.support := by
   unfold leading_monomial'
   apply maxm'_mem
+
+lemma lm'_mon {σ R : Type*} [DecidableEq σ] [CommSemiring R]
+  (mo : MonomialOrder σ) (μ : σ →₀ ℕ) (c : R) (c_ne_0 : c ≠ 0)
+  : have mon_ne_0 : MvPolynomial.monomial μ c ≠ 0 := by simp [c_ne_0]
+    leading_monomial' mo (MvPolynomial.monomial μ c) mon_ne_0 = μ := by
+  intro mon_ne_0
+  have key := lm'_mem mo (MvPolynomial.monomial μ c) mon_ne_0
+  simp at key
+  exact key.1.symm
 
 /-- The leading monomials equal, given the two monomials equal and one of them
 is not zero. -/
@@ -125,6 +145,15 @@ lemma lm'_smul_eq_lm' {σ R : Type*} [DecidableEq σ] [CommSemiring R] [IsDomain
   simp_all
 
 /-- Polynomial negation fixes its leading monomial. -/
+lemma lm_neg_eq_lm {σ R : Type*} [DecidableEq σ] [CommRing R]
+  (mo : MonomialOrder σ) (f : MvPolynomial σ R) :
+  leading_monomial mo f = leading_monomial mo (-f) := by
+  unfold leading_monomial
+  unfold max_monomial
+  simp_all
+
+/-- Polynomial negation fixes its leading monomial. A nonzero-polynomial variant
+of `lm_neg_eq_lm`. -/
 lemma lm'_neg_eq_lm' {σ R : Type*} [DecidableEq σ] [CommRing R]
   (mo : MonomialOrder σ) (f : MvPolynomial σ R) (f_not_0 : f ≠ 0) :
   leading_monomial' mo f f_not_0 = leading_monomial' mo (-f) (neg_ne_zero.mpr f_not_0) := by
@@ -200,7 +229,7 @@ lemma lm_sub_smul_eq_lm {σ R : Type*} [DecidableEq σ] [CommRing R] [IsDomain R
     | inl mem_g =>
       unfold lmg leading_monomial' max_monomial' at hmg
       simp only [AddEquiv.toEquiv_eq_coe, Equiv.invFun_as_coe, AddEquiv.coe_toEquiv_symm,
-        AddEquiv.apply_symm_apply, Finset.max'_le_iff, Finset.mem_map_equiv, AddEquiv.coe_toEquiv_symm] at hmg
+        AddEquiv.apply_symm_apply, AddEquiv.coe_toEquiv_symm] at hmg
       let goal := hmg (mo.toSyn.symm y) mem_g
       simp at goal
       exact goal
@@ -208,12 +237,11 @@ lemma lm_sub_smul_eq_lm {σ R : Type*} [DecidableEq σ] [CommRing R] [IsDomain R
       apply le_of_lt
       unfold lmg leading_monomial' max_monomial' at hmfg
       simp only [AddEquiv.toEquiv_eq_coe, Equiv.invFun_as_coe, AddEquiv.coe_toEquiv_symm,
-        AddEquiv.apply_symm_apply, Finset.max'_le_iff, Finset.mem_map_equiv, AddEquiv.coe_toEquiv_symm] at hmfg
+        AddEquiv.apply_symm_apply, AddEquiv.coe_toEquiv_symm] at hmfg
       let goal := hmfg (mo.toSyn.symm y) mem_f
       simp at goal
       exact goal
   · exact mem_le_lm' mo (g - c • f) (sub_smul_ne_0 mo f g hf hg hfg c) lmg lmg_mem
-
 
 /-- `max_monomial'` of a Finset is type-coerced to `max_monomial`, when `S.Nonempty` is
 removed. A monomial order version of `Finset.coe_max'`. -/
@@ -300,6 +328,121 @@ lemma lm_add_le_of_both_lm_le {σ R : Type*} [DecidableEq σ] [CommSemiring R]
         simp [lm_coe_lm' mo f2 f2_ne_0, lm_coe_lm' mo g g_ne_0] at hf2g
         exact lm'_add_le_of_both_lm'_le mo f1 f2 g f1_ne_0 f2_ne_0 fadd_ne_0 g_ne_0 hf1g hf2g
 
+lemma lm_add_le_of_both_lm_le_mon {σ R : Type*} [DecidableEq σ] [CommSemiring R] [Nontrivial R]
+  (mo : MonomialOrder σ) (f1 f2 : MvPolynomial σ R) (δ : σ →₀ ℕ)
+  (hf1g : WithBot.map mo.toSyn (leading_monomial mo f1) ≤ mo.toSyn δ)
+  (hf2g : WithBot.map mo.toSyn (leading_monomial mo f2) ≤ mo.toSyn δ)
+  : WithBot.map mo.toSyn (leading_monomial mo (f1 + f2)) ≤ mo.toSyn δ := by
+  let g := MvPolynomial.monomial δ (1 : R)
+  have g_ne_0 : g ≠ 0 := by simp [g]
+  have lmg_eq_δ := lm'_mon mo δ (1 : R) one_ne_zero
+  have lmg_eq_δ_syn : WithBot.map mo.toSyn (leading_monomial mo g) = mo.toSyn δ := by
+    rw [lm_coe_lm' mo _ g_ne_0]
+    subst g
+    rw [lmg_eq_δ]
+    simp only [WithBot.map_coe]
+  rw [← lmg_eq_δ_syn] at hf1g hf2g
+  rw [← lmg_eq_δ_syn]
+  exact lm_add_le_of_both_lm_le mo f1 f2 g hf1g hf2g
+
+lemma lm_sum_le_of_all_lm_le {σ R ι : Type*}
+  [DecidableEq σ] [CommSemiring R] [Nontrivial R] [DecidableEq ι]
+  (mo : MonomialOrder σ) (s : Finset ι) (φ : ι → MvPolynomial σ R) (δ : σ →₀ ℕ)
+  (hφδ : ∀ i ∈ s, WithBot.map mo.toSyn (leading_monomial mo (φ i)) ≤ mo.toSyn δ)
+  : WithBot.map mo.toSyn (leading_monomial mo (∑ i ∈ s, φ i)) ≤ mo.toSyn δ := by
+  apply
+    Finset.sum_induction φ
+      (λ f => WithBot.map mo.toSyn (leading_monomial mo f) ≤ mo.toSyn δ)
+      (lm_add_le_of_both_lm_le_mon mo · · δ)
+  · simp [lm_zero_eq_bot]
+  · exact hφδ
+
+lemma lm'_add_lt_of_both_lm'_lt {σ R : Type*} [DecidableEq σ] [CommSemiring R]
+  (mo : MonomialOrder σ) (f1 f2 g : MvPolynomial σ R)
+  (f1_ne_0 : f1 ≠ 0) (f2_ne_0 : f2 ≠ 0) (fadd_ne_0 : f1 + f2 ≠ 0) (g_ne_0 : g ≠ 0)
+  (hf1g : mo.toSyn (leading_monomial' mo f1 f1_ne_0) < mo.toSyn (leading_monomial' mo g g_ne_0))
+  (hf2g : mo.toSyn (leading_monomial' mo f2 f2_ne_0) < mo.toSyn (leading_monomial' mo g g_ne_0))
+  : mo.toSyn (leading_monomial' mo (f1 + f2) fadd_ne_0) < mo.toSyn (leading_monomial' mo g g_ne_0) := by
+  simp [leading_monomial', max_monomial']
+  simp [leading_monomial', max_monomial'] at hf1g hf2g
+  push_neg at hf1g hf2g
+  intro μ' f_μ'_coeff_add_ne_0
+  let μ := mo.toSyn.symm μ'
+  have f_coeff_ne_0 : f1.coeff μ ≠ 0 ∨ f2.coeff μ ≠ 0 := by
+    by_contra f_coeff_eq_0
+    push_neg at f_coeff_eq_0
+    rcases f_coeff_eq_0 with ⟨f1_coeff_eq_0, f2_coeff_eq_0⟩
+    subst μ
+    rw [f1_coeff_eq_0, f2_coeff_eq_0] at f_μ'_coeff_add_ne_0
+    simp at f_μ'_coeff_add_ne_0
+  cases f_coeff_ne_0 with
+  | inl f1_coeff_ne_0 =>
+    exact hf1g μ' f1_coeff_ne_0
+  | inr f2_coeff_ne_0 =>
+    exact hf2g μ' f2_coeff_ne_0
+
+lemma lm_add_lt_of_both_lm_lt {σ R : Type*} [DecidableEq σ] [CommSemiring R]
+  (mo : MonomialOrder σ) (f1 f2 g : MvPolynomial σ R)
+  (hf1g : WithBot.map mo.toSyn (leading_monomial mo f1) < WithBot.map mo.toSyn (leading_monomial mo g))
+  (hf2g : WithBot.map mo.toSyn (leading_monomial mo f2) < WithBot.map mo.toSyn (leading_monomial mo g))
+  : WithBot.map mo.toSyn (leading_monomial mo (f1 + f2)) < WithBot.map mo.toSyn (leading_monomial mo g) := by
+  cases em (f1 = 0) with
+  | inl f1_eq_0 =>
+    subst f1
+    simp
+    exact hf2g
+  | inr f1_ne_0 =>
+    push_neg at f1_ne_0
+    have g_ne_0 : g ≠ 0 := by
+      simp [lm_coe_lm' mo f1 f1_ne_0] at hf1g
+      by_contra g_eq_0
+      subst g
+      simp [lm_zero_eq_bot] at hf1g
+    cases em (f2 = 0) with
+    | inl f2_eq_0 =>
+      subst f2
+      simp
+      exact hf1g
+    | inr f2_ne_0 =>
+      cases em (f1 + f2 = 0) with
+      | inl fadd_eq_0 =>
+        simp [fadd_eq_0, lm_zero_eq_bot, lm_coe_lm' mo g g_ne_0]
+      | inr fadd_ne_0 =>
+        push_neg at f2_ne_0 fadd_ne_0
+        simp [lm_coe_lm' mo (f1 + f2) fadd_ne_0, lm_coe_lm' mo g g_ne_0]
+        simp [lm_coe_lm' mo f1 f1_ne_0, lm_coe_lm' mo g g_ne_0] at hf1g
+        simp [lm_coe_lm' mo f2 f2_ne_0, lm_coe_lm' mo g g_ne_0] at hf2g
+        exact lm'_add_lt_of_both_lm'_lt mo f1 f2 g f1_ne_0 f2_ne_0 fadd_ne_0 g_ne_0 hf1g hf2g
+
+lemma lm_add_lt_of_both_lm_lt_mon {σ R : Type*} [DecidableEq σ] [CommSemiring R] [Nontrivial R]
+  (mo : MonomialOrder σ) (f1 f2 : MvPolynomial σ R) (δ : σ →₀ ℕ)
+  (hf1g : WithBot.map mo.toSyn (leading_monomial mo f1) < mo.toSyn δ)
+  (hf2g : WithBot.map mo.toSyn (leading_monomial mo f2) < mo.toSyn δ)
+  : WithBot.map mo.toSyn (leading_monomial mo (f1 + f2)) < mo.toSyn δ := by
+  let g := MvPolynomial.monomial δ (1 : R)
+  have g_ne_0 : g ≠ 0 := by simp [g]
+  have lmg_eq_δ := lm'_mon mo δ (1 : R) one_ne_zero
+  have lmg_eq_δ_syn : WithBot.map mo.toSyn (leading_monomial mo g) = mo.toSyn δ := by
+    rw [lm_coe_lm' mo _ g_ne_0]
+    subst g
+    rw [lmg_eq_δ]
+    simp only [WithBot.map_coe]
+  rw [← lmg_eq_δ_syn] at hf1g hf2g
+  rw [← lmg_eq_δ_syn]
+  exact lm_add_lt_of_both_lm_lt mo f1 f2 g hf1g hf2g
+
+lemma lm_sum_lt_of_all_lm_lt {σ R ι : Type*}
+  [DecidableEq σ] [CommSemiring R] [Nontrivial R] [DecidableEq ι]
+  (mo : MonomialOrder σ) (s : Finset ι) (φ : ι → MvPolynomial σ R) (δ : σ →₀ ℕ)
+  (hφδ : ∀ i ∈ s, WithBot.map mo.toSyn (leading_monomial mo (φ i)) < mo.toSyn δ)
+  : WithBot.map mo.toSyn (leading_monomial mo (∑ i ∈ s, φ i)) < mo.toSyn δ := by
+  apply
+    Finset.sum_induction φ
+      (λ f => WithBot.map mo.toSyn (leading_monomial mo f) < mo.toSyn δ)
+      (lm_add_lt_of_both_lm_lt_mon mo · · δ)
+  · simp [lm_zero_eq_bot]
+  · exact hφδ
+
 /-- The leading coefficient of polynomial `f`, under given monomial order `mo`.
 That is, the coefficient of leading monomial of `f`. -/
 def leading_coeff' {σ R : Type*} [DecidableEq σ] [CommSemiring R]
@@ -334,9 +477,118 @@ lemma coeff_zero_of_lt_lm {σ R : Type*} [DecidableEq σ] [CommSemiring R]
     by_contra HC
     exact Eq.not_lt rfl (supp_f_lt_lmg lmg HC)
 
+lemma lm'_mul_commute {σ R : Type*} [DecidableEq σ] [CommSemiring R] [IsDomain R]
+  (mo : MonomialOrder σ) (f g : MvPolynomial σ R) (f_not_0 : f ≠ 0) (g_not_0 : g ≠ 0)
+  : have fg_not_0 : f * g ≠ 0 := mul_ne_zero f_not_0 g_not_0
+    let lmf := leading_monomial' mo f f_not_0
+    let lmg := leading_monomial' mo g g_not_0
+    let lmfg := leading_monomial' mo (f * g) fg_not_0
+    lmf + lmg = lmfg := by
+  intro fg_not_0 lmf lmg lmfg
+  simp [lmf, lmg, lmfg, leading_monomial', max_monomial']
+  rw [← AddEquiv.map_add mo.toSyn.symm, AddEquiv.apply_eq_iff_eq]
+  symm
+  rw [Finset.max'_eq_iff] -- requires mathlib v4.22.0-rc4 or later
+  constructor
+  · rw [Finset.mem_map_equiv, MvPolynomial.mem_support_iff]
+    simp [MvPolynomial.coeff_mul, -ne_eq]
+    have only_fg_term_combi
+      : ∀ mp ∈ Finset.antidiagonal (lmf + lmg),
+        (f.coeff mp.1 * g.coeff mp.2 ≠ 0 ↔ mp = (lmf, lmg)) := by
+      intro ⟨mf, mg⟩ mem_lmfg_ad
+      simp [Finset.mem_antidiagonal] at mem_lmfg_ad
+      rw [mul_ne_zero_iff]
+      simp [-ne_eq]
+      constructor -- mo.lo, mo.iocam을 충실하게 활용해야 한다
+      · intro ⟨cf_ne_0, cg_ne_0⟩
+        by_contra m_ne_lm
+        push_neg at m_ne_lm
+        cases em (mf = lmf) with
+        | inl mf_eq_lmf =>
+          subst mf
+          simp_all
+        | inr mf_ne_lmf =>
+          have mf_supp_f : mf ∈ f.support := by simp [cf_ne_0]
+          have mg_supp_g : mg ∈ g.support := by simp [cg_ne_0]
+          -- mf < lmf, mg ≤ lmg... 더하면 <
+          have mf_lt_lmf : mo.toSyn mf < mo.toSyn lmf := by
+            apply lt_of_le_of_ne
+            · exact mem_le_lm' mo f f_not_0 mf mf_supp_f
+            · simp [mf_ne_lmf]
+          have mg_le_lmg : mo.toSyn mg ≤ mo.toSyn lmg :=
+            mem_le_lm' mo g g_not_0 mg mg_supp_g
+          rw [← AddEquiv.apply_eq_iff_eq mo.toSyn] at mem_lmfg_ad
+          simp at mem_lmfg_ad
+          absurd mem_lmfg_ad
+          apply ne_of_lt
+          calc
+            mo.toSyn mf + mo.toSyn mg < mo.toSyn lmf + mo.toSyn mg :=
+              add_lt_add_right mf_lt_lmf (mo.toSyn mg)
+            _ ≤ mo.toSyn lmf + mo.toSyn lmg :=
+              add_le_add_left mg_le_lmg (mo.toSyn lmf)
+      · intro ⟨mf_eq_lmf, mg_eq_lmg⟩
+        subst mf mg
+        exact ⟨lc_not_zero mo f f_not_0, lc_not_zero mo g g_not_0⟩
+    have sum_except_eq_zero
+      : ∑ mp ∈ (Finset.antidiagonal (lmf + lmg)).erase (lmf, lmg), f.coeff mp.1 * g.coeff mp.2 = 0 := by
+      apply Finset.sum_eq_zero
+      intro mp mp_mem_erase
+      rw [Finset.mem_erase] at mp_mem_erase
+      rcases mp_mem_erase with ⟨mp_ne_pair, mp_mem⟩
+      have key := only_fg_term_combi mp mp_mem
+      simp only [ne_eq, ← key] at mp_ne_pair
+      push_neg at mp_ne_pair
+      exact mp_ne_pair
+    have final_sum_eq :=
+      @Finset.sum_insert _ _ _ _ _
+        (λ mp => f.coeff mp.1 * g.coeff mp.2) _
+        (Finset.notMem_erase (lmf, lmg) (Finset.antidiagonal (lmf + lmg)))
+    rw [Finset.insert_erase (by simp), sum_except_eq_zero] at final_sum_eq
+    simp [lmf, lmg, leading_monomial', max_monomial'] at final_sum_eq
+    rw [final_sum_eq]
+    exact (only_fg_term_combi (lmf, lmg) (by simp)).mpr (by simp)
+  · intro mfg' mfg'_supp_fg
+    simp only [Finset.mem_map_equiv, AddEquiv.coe_toEquiv_symm] at mfg'_supp_fg
+    apply MvPolynomial.support_mul at mfg'_supp_fg
+    rw [← AddEquiv.coe_toEquiv_symm, ← Finset.mem_map_equiv] at mfg'_supp_fg
+    simp only [Finset.mem_map, Equiv.coe_toEmbedding, EquivLike.coe_coe] at mfg'_supp_fg
+    rcases mfg'_supp_fg with ⟨mfg, mfg_supp_add, mfg_eq_mfg'⟩
+    rw [Finset.mem_add] at mfg_supp_add
+    rcases mfg_supp_add with ⟨mf, mf_supp_f, mg, mg_supp_g, mf_add_mg⟩
+    simp [← AddEquiv.apply_eq_iff_eq mo.toSyn] at mf_add_mg
+    rw [← mfg_eq_mfg', ← mf_add_mg]
+    apply add_le_add
+    · exact Finset.le_max' _ (mo.toSyn mf) (by simp [mf_supp_f])
+    · exact Finset.le_max' _ (mo.toSyn mg) (by simp [mg_supp_g])
+
+lemma lm_sub_leadterm_lt_lm {σ R : Type*} [DecidableEq σ] [CommRing R] [Nontrivial R]
+  (mo : MonomialOrder σ) (f : MvPolynomial σ R) (f_ne_0 : f ≠ 0)
+  : let lmf := leading_monomial' mo f f_ne_0
+    let lcf := f.coeff lmf
+    let ltf := MvPolynomial.monomial lmf lcf
+    WithBot.map mo.toSyn (leading_monomial mo (f - ltf)) < mo.toSyn lmf := by
+  intro lmf lcf ltf
+  have lcf_ne_0 : lcf ≠ 0 := lc_not_zero mo f f_ne_0
+  apply lt_of_le_of_ne
+  · rw [sub_eq_add_neg]
+    apply lm_add_le_of_both_lm_le_mon
+    · simp [lmf, lm_coe_lm' mo f f_ne_0, WithBot.map_coe]
+    · simp [← lm_neg_eq_lm, ltf]
+      rw [
+        lm_coe_lm' mo _
+        (by simp only [ne_eq, MvPolynomial.monomial_eq_zero]; exact lcf_ne_0)
+      ]
+      simp [WithBot.map_coe, lm'_mon mo lmf lcf lcf_ne_0]
+  · rw [← WithBot.map_coe]
+    by_contra lm_sub_ltf_eq_lm
+    unfold leading_monomial max_monomial at lm_sub_ltf_eq_lm
+    simp [WithBot.map] at lm_sub_ltf_eq_lm
+    apply Finset.mem_of_max at lm_sub_ltf_eq_lm
+    simp [ltf, lcf] at lm_sub_ltf_eq_lm
+
 /-- The finite set of leading monomials of `f ∈ F` for finite `F`,
   under a given monomial order `mo`. -/
-def leading_monomials_fin {σ R : Type*} [DecidableEq σ] [CommSemiring R]
+noncomputable def leading_monomials_fin {σ R : Type*} [DecidableEq σ] [CommSemiring R]
   (mo : MonomialOrder σ) (F : Finset (MvPolynomial σ R)) : Finset (σ →₀ ℕ) :=
   F.biUnion (λ (f : MvPolynomial σ R) => (leading_monomial mo f).toFinset)
 
@@ -437,9 +689,9 @@ lemma maxm'_monmul_commute {σ : Type*} [DecidableEq σ]
       simp
       exists mo.toSyn.symm S_syn_max'
       constructor
-      · have (n) : mo.toSyn.symm n ∈ S ↔ n ∈ S.map mo.toSyn.toEmbedding := by
+      · have key (n) : mo.toSyn.symm n ∈ S ↔ n ∈ S.map mo.toSyn.toEmbedding := by
           simp_all only [AddEquiv.toEquiv_eq_coe, Finset.mem_map_equiv, AddEquiv.coe_toEquiv_symm]
-        rw [this S_syn_max']
+        rw [key S_syn_max']
         unfold S_syn_max'
         apply Finset.max'_mem
       · intro b b_in_S
@@ -647,3 +899,44 @@ lemma mon_mem_moni_iff {σ : Type*} {K : Type*} [DecidableEq σ] [Field K] [Deci
     -- We are done, since the key step above shows the divisibility.
     rw [Ideal.mem_span_singleton]
     exists (MvPolynomial.monomial δ) 1
+
+lemma term_mem_moni_iff {σ : Type*} {K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
+  (ν : σ →₀ ℕ) (M : Set (σ →₀ ℕ)) (c : K) (hc : c ≠ 0)
+  : MvPolynomial.monomial ν c ∈ monomial_ideal K M ↔ ∃ μ ∈ M, μ ≤ ν := by
+  rw [← @mon_mem_moni_iff σ K]
+  constructor
+  · intro mc_mem
+    apply Ideal.mul_mem_left (monomial_ideal K M) (MvPolynomial.C c⁻¹) at mc_mem
+    simp [MvPolynomial.C_mul_monomial, hc] at mc_mem
+    exact mc_mem
+  · intro m1_mem
+    apply Ideal.mul_mem_left (monomial_ideal K M) (MvPolynomial.C c) at m1_mem
+    simp [MvPolynomial.C_mul_monomial] at m1_mem
+    exact m1_mem
+
+lemma mem_moni_iff {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
+  (f : MvPolynomial σ K) (M : Set (σ →₀ ℕ))
+  : f ∈ monomial_ideal K M ↔ ∀ ν ∈ f.support, ∃ μ ∈ M, μ ≤ ν := by
+  constructor
+  · intro f_mem_IM ν ν_supp_f
+    unfold monomial_ideal at f_mem_IM
+    rw [Ideal.span, Submodule.mem_span_iff_exists_finset_subset] at f_mem_IM
+    rcases f_mem_IM with ⟨φ, F, F_subs_M, φ_supp_F, φ_sum_f⟩
+    rw [← φ_sum_f] at ν_supp_f
+    apply MvPolynomial.support_sum at ν_supp_f
+    simp only [smul_eq_mul, Finset.mem_biUnion] at ν_supp_f
+    rcases ν_supp_f with ⟨mμ, mμ_mem_F, ν_supp_φμμ⟩
+    apply F_subs_M at mμ_mem_F
+    simp at mμ_mem_F
+    rcases mμ_mem_F with ⟨μ, μ_mem_M, μ_eq_mμ⟩
+    exists μ, μ_mem_M
+    rw [@mem_monmul_supp_iff σ K]
+    exists φ mμ
+    rw [μ_eq_mμ]
+    exact ν_supp_φμμ
+  · intro M_div_mon_f
+    rw [← MvPolynomial.support_sum_monomial_coeff f]
+    apply Ideal.sum_mem
+    intro ν ν_supp_f
+    rw [term_mem_moni_iff ν M (f.coeff ν) (MvPolynomial.mem_support_iff.mp ν_supp_f)]
+    exact M_div_mon_f ν ν_supp_f

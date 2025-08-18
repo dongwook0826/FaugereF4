@@ -198,7 +198,7 @@ lemma elim_subset_span {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   : (eliminate_lead_term mo S p hp).toSet ⊆ (Submodule.span K ({p} ∪ S) : Submodule K (MvPolynomial σ K)) := by
   intro f hf
   unfold eliminate_lead_term at hf
-  simp [Finset.mem_image] at hf
+  simp at hf
   let ⟨g, hg, hgf⟩ := hf
   simp
   subst hgf
@@ -725,11 +725,10 @@ noncomputable def gaussian_elim_step {σ K : Type*} [DecidableEq σ] [Field K] [
           unfold leading_monomial' max_monomial' at H
           rw [AddEquiv.invFun_eq_symm, ← Finset.mem_map' mo.toSyn.toEmbedding] at H
           rw [Equiv.toEmbedding_apply] at H
-          have (x) : mo.toSyn.toEquiv (mo.toSyn.symm x) = x := by
+          have key (x) : mo.toSyn.toEquiv (mo.toSyn.symm x) = x := by
             simp_all
-          -- simp at H
-          rw [this] at H
-          simp only [AddEquiv.toEquiv_eq_coe, Equiv.apply_symm_apply mo.toSyn.toEquiv] at H
+          rw [key] at H
+          simp only [AddEquiv.toEquiv_eq_coe] at H
           have le_cont : mo.toSyn (leading_monomial' mo af (ne_of_mem_of_not_mem af_mem ges.zero_not_mem_SO)) ≤ mo.toSyn lm_pivot := by
             unfold lm_pivot leading_monomial' max_monomial'
             rw [AddEquiv.invFun_eq_symm]

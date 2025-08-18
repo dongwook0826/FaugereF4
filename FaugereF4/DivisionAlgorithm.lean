@@ -241,7 +241,7 @@ noncomputable def mvpoly_division_step {σ K : Type*}
           · exact lmfqi_le_lmf
         | inr i_ne_di =>
           push_neg at i_ne_di
-          simp [i_ne_di]
+          simp
           rw [List.getElem_modify_ne _ _ i_ne_di.symm]
           exact mpds.lm_summand_le_lmf ⟨i, hi⟩
       r_not_divisible := mpds.r_not_divisible
@@ -387,7 +387,7 @@ lemma mvpoly_division_lmp_decr {σ K : Type*}
         simp [← AddEquiv.apply_eq_iff_eq mo.toSyn] at HC
         unfold lmp at key'
         rw [← Finset.mem_map' mo.toSyn.toEmbedding, Equiv.toEmbedding_apply, AddEquiv.toEquiv_eq_coe] at key'
-        simp only [EquivLike.coe_coe, ltp, lcp, lmp] at key'
+        simp only [EquivLike.coe_coe] at key'
         rw [← HC] at key'
         exact key' key
 

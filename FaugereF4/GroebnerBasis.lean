@@ -128,6 +128,69 @@ theorem mem_ideal_iff_gb_remainder_zero {σ K : Type*}
     apply Ideal.span_mono LGi_mem_G
     simp [Ideal.mem_span_singleton]
 
+lemma groebner_iff_ideal_leadterm_mem_initI {σ K : Type*}
+  [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (G : Finset (MvPolynomial σ K))
+  : is_groebner mo G (Ideal.span ↑G)
+  ↔ ∀ f ∈ Ideal.span ↑G, (f_ne_0 : f ≠ 0) →
+      let lmf := leading_monomial' mo f f_ne_0
+      let lcf := f.coeff lmf
+      let ltf := MvPolynomial.monomial lmf lcf
+      ltf ∈ monomial_ideal K (leading_monomials_fin mo G) := by
+  unfold is_groebner
+  constructor
+  · intro ⟨G_subs_I, initI_eq⟩ f f_mem_I f_ne_0 lmf lcf ltf
+    rw [← initI_eq]
+    rw [term_mem_moni_iff lmf _ lcf (lc_not_zero mo f f_ne_0)]
+    simp [leading_monomials]
+    exists lmf
+    constructor
+    · exists f
+      constructor
+      · exact f_mem_I
+      · simp [lmf, lm_coe_lm' mo f f_ne_0, WithBot.some_eq_coe]
+    · rfl
+  · intro lt_mem_initIG
+    constructor
+    · exact Ideal.subset_span
+    · apply le_antisymm
+      · intro f f_mem_initII
+        rw [mem_moni_iff] at f_mem_initII
+        rw [mem_moni_iff]
+        intro ν ν_supp_f
+        rcases f_mem_initII ν ν_supp_f with ⟨μ, μ_mem_lmI, μ_div_ν⟩
+        simp [leading_monomials] at μ_mem_lmI
+        rcases μ_mem_lmI with ⟨g, g_mem_I, lmg_eq_μ⟩
+        have g_ne_0 : g ≠ 0 := by
+          by_contra g_eq_0
+          subst g
+          rw [lm_zero_eq_bot] at lmg_eq_μ
+          simp [WithBot.some_eq_coe] at lmg_eq_μ
+          exact WithBot.bot_ne_coe lmg_eq_μ
+        have ltG_mem_initIG := lt_mem_initIG g g_mem_I g_ne_0
+        simp at ltG_mem_initIG
+        rw [
+          term_mem_moni_iff
+            (leading_monomial' mo g g_ne_0)
+            (leading_monomials_fin mo G)
+            (g.coeff (leading_monomial' mo g g_ne_0))
+            (lc_not_zero mo g g_ne_0)
+        ] at ltG_mem_initIG
+        rw [lm_coe_lm' mo g g_ne_0, WithBot.some_eq_coe, WithBot.coe_inj] at lmg_eq_μ
+        rcases ltG_mem_initIG with ⟨κ, κ_mem_lmG, κ_div_μ⟩
+        exists κ, κ_mem_lmG
+        subst μ
+        exact le_trans κ_div_μ μ_div_ν
+      · unfold monomial_ideal
+        apply Ideal.span_mono
+        apply Set.image_mono
+        intro μ μ_mem_lmG
+        simp [leading_monomials_fin] at μ_mem_lmG
+        rcases μ_mem_lmG with ⟨g, g_mem_G, lmg_eq_μ⟩
+        simp [leading_monomials]
+        exists g
+        exact ⟨by apply Ideal.subset_span g_mem_G, lmg_eq_μ⟩
+
 /-- Definition of S-pair of two nonzero polynomials. -/
 noncomputable def S_pair {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (f g : MvPolynomial σ K) (hf : f ≠ 0) (hg : g ≠ 0)
@@ -139,11 +202,49 @@ noncomputable def S_pair {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq 
   let lcm_fg := lcm_monomial lmf lmg
   ⟨f * MvPolynomial.monomial (lcm_fg - lmf) lcf⁻¹, g * MvPolynomial.monomial (lcm_fg - lmg) lcg⁻¹⟩
 
+lemma spair_ne_0 {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (f g : MvPolynomial σ K) (hf : f ≠ 0) (hg : g ≠ 0)
+  : (S_pair mo f g hf hg).1 ≠ 0 ∧ (S_pair mo f g hf hg).2 ≠ 0 := by
+  simp [S_pair, -ne_eq]
+  constructor
+  · simp
+    constructor
+    · exact hf
+    · exact lc_not_zero mo f hf
+  · simp
+    constructor
+    · exact hg
+    · exact lc_not_zero mo g hg
+
+lemma lm_spair_eq_lcm {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (f g : MvPolynomial σ K) (hf : f ≠ 0) (hg : g ≠ 0)
+  : let lmf := leading_monomial' mo f hf
+    let lmg := leading_monomial' mo g hg
+    let lcmfg := lcm_monomial lmf lmg
+    let sp := S_pair mo f g hf hg
+    have sp_ne_0 := spair_ne_0 mo f g hf hg
+    leading_monomial' mo sp.1 sp_ne_0.1 = lcmfg ∧ leading_monomial' mo sp.2 sp_ne_0.2 = lcmfg := by
+  intro lmf lmg lcmfg sp sp_ne_0 -- ⟨sfg, sgf⟩ ⟨sfg_ne_0, sgf_ne_0⟩
+  simp [sp, S_pair]
+  constructor
+  · rw [lm'_monmul_commute mo f hf (lcmfg - lmf) (f.coeff lmf)⁻¹ (by exact inv_ne_zero (lc_not_zero mo f hf))]
+    rw [add_comm]
+    exact monomial_sub_add lmf lcmfg (by intro x; simp [lcmfg, lcm_monomial])
+  · rw [lm'_monmul_commute mo g hg (lcmfg - lmg) (g.coeff lmg)⁻¹ (by exact inv_ne_zero (lc_not_zero mo g hg))]
+    rw [add_comm]
+    exact monomial_sub_add lmg lcmfg (by intro x; simp [lcmfg, lcm_monomial])
+
 /-- Definition of the S-polynomial of two nonzero polynomials. -/
 noncomputable def S_poly {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (f g : MvPolynomial σ K) (hf : f ≠ 0) (hg : g ≠ 0) :=
   let ⟨p1, p2⟩ := S_pair mo f g hf hg
   p1 - p2
+
+lemma S_poly_self_eq_zero {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (f : MvPolynomial σ K) (hf : f ≠ 0)
+  : S_poly mo f f hf hf = 0 := by
+  unfold S_poly S_pair
+  simp only [sub_self]
 
 /-- A rewrite lemma on `S-poly` for equal pairs of polynomials. -/
 lemma eq_S_poly_of_eq_eq {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
@@ -166,6 +267,336 @@ lemma S_poly_neg_of_swap {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq 
   unfold S_poly S_pair
   simp [lcm_monomial_comm]
 
+lemma lm_spoly_lt_lcm {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (f g : MvPolynomial σ K) (hf : f ≠ 0) (hg : g ≠ 0)
+  : let spoly := S_poly mo f g hf hg
+    let lcmfg := lcm_monomial (leading_monomial' mo f hf) (leading_monomial' mo g hg)
+    WithBot.map mo.toSyn (leading_monomial mo spoly) < mo.toSyn lcmfg := by
+  intro spoly lcmfg
+  let lms := leading_monomial mo spoly
+  cases em (spoly = 0) with
+  | inl spoly_eq_0 =>
+    subst spoly
+    simp [spoly_eq_0, lm_zero_eq_bot]
+  | inr spoly_ne_0 =>
+    rw [lm_coe_lm' mo spoly spoly_ne_0]
+    simp
+    apply lt_of_le_of_ne
+    · have sp_ne_0 := spair_ne_0 mo f g hf hg
+      have lm_sp_eq_lcm := lm_spair_eq_lcm mo f g hf hg
+      simp at lm_sp_eq_lcm
+      subst spoly
+      simp [S_poly, S_pair, sub_eq_add_neg]
+      conv_rhs => rw [← lm'_mon mo lcmfg (1 : K) one_ne_zero]
+      have lmsfg_le_lcmfg
+        : mo.toSyn (leading_monomial' mo (S_pair mo f g hf hg).1 sp_ne_0.1)
+        ≤ mo.toSyn (leading_monomial' mo ((MvPolynomial.monomial lcmfg) (1 : K)) (by simp)) := by
+        apply le_of_eq
+        simp [lm'_mon mo lcmfg (1 : K) one_ne_zero]
+        exact lm_sp_eq_lcm.1
+      have lmsgf_le_lcmfg
+        : mo.toSyn (leading_monomial' mo (S_pair mo f g hf hg).2 sp_ne_0.2)
+        ≤ mo.toSyn (leading_monomial' mo ((MvPolynomial.monomial lcmfg) (1 : K)) (by simp)) := by
+        apply le_of_eq
+        simp [lm'_mon mo lcmfg (1 : K) one_ne_zero]
+        exact lm_sp_eq_lcm.2
+      apply
+        lm'_add_le_of_both_lm'_le mo
+          (S_pair mo f g hf hg).1
+          (-(S_pair mo f g hf hg).2)
+          (MvPolynomial.monomial lcmfg 1)
+          sp_ne_0.1
+          (by simp [sp_ne_0.2])
+          (by rw [← sub_eq_add_neg]; exact spoly_ne_0)
+          (by simp)
+          lmsfg_le_lcmfg
+          (by rw [← lm'_neg_eq_lm' mo (S_pair mo f g hf hg).2 sp_ne_0.2]; exact lmsgf_le_lcmfg)
+    · have lms_mem := lm'_mem mo spoly spoly_ne_0
+      simp
+      by_contra HC
+      rw [HC, MvPolynomial.mem_support_iff] at lms_mem
+      simp [spoly, S_poly, S_pair] at lms_mem
+      absurd lms_mem
+      rw [sub_eq_zero]
+      unfold lcmfg
+      conv_lhs =>
+        rw [
+          ← monomial_sub_add
+            (leading_monomial' mo f hf)
+            (lcm_monomial (leading_monomial' mo f hf) (leading_monomial' mo g hg))
+            (by intro x; simp [lcm_monomial]),
+          add_comm
+        ]
+        simp
+        rw [mul_inv_cancel₀ (by exact lc_not_zero mo f hf)]
+      conv_rhs =>
+        rw [
+          ← monomial_sub_add
+            (leading_monomial' mo g hg)
+            (lcm_monomial (leading_monomial' mo f hf) (leading_monomial' mo g hg))
+            (by intro x; simp [lcm_monomial]),
+          add_comm
+        ]
+        simp
+        rw [mul_inv_cancel₀ (by exact lc_not_zero mo g hg)]
+
+lemma smul_spoly {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ)
+  (f g : MvPolynomial σ K) (hf : f ≠ 0) (hg : g ≠ 0)
+  (c1 c2 : K) (hc1 : c1 ≠ 0) (hc2 : c2 ≠ 0)
+  : S_poly mo f g hf hg = S_poly mo (c1 • f) (c2 • g) (smul_ne_zero hc1 hf) (smul_ne_zero hc2 hg) := by
+  simp [S_poly, S_pair, ← lm'_smul_eq_lm' mo f hf c1 hc1, ← lm'_smul_eq_lm' mo g hg c2 hc2]
+  rw [← mul_smul_comm c1 f _, ← mul_smul_comm c2 g _]
+  simp [MvPolynomial.smul_monomial]
+  conv in _ * c1⁻¹ => rw [mul_comm]
+  conv in c1 * _ => rw [← mul_assoc, mul_inv_cancel₀ hc1, one_mul]
+  conv in _ * c2⁻¹ => rw [mul_comm]
+  conv in c2 * _ => rw [← mul_assoc, mul_inv_cancel₀ hc2, one_mul]
+
+lemma mul_mon_spoly {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (f g : MvPolynomial σ K) (hf : f ≠ 0) (hg : g ≠ 0) (α β : σ →₀ ℕ)
+  : let lmf := leading_monomial' mo f hf
+    let lmg := leading_monomial' mo g hg
+    let αf := f * MvPolynomial.monomial α (1 : K)
+    let βg := g * MvPolynomial.monomial β (1 : K)
+    let αf_ne_0 : αf ≠ 0 := by unfold αf; exact mul_ne_zero hf (by simp)
+    let βg_ne_0 : βg ≠ 0 := by unfold βg; exact mul_ne_zero hg (by simp)
+    let lcm_fg := lcm_monomial lmf lmg
+    let lcm_αfβg := lcm_monomial (α + lmf) (β + lmg)
+    let γ := lcm_αfβg - lcm_fg
+    S_poly mo αf βg αf_ne_0 βg_ne_0 = MvPolynomial.monomial γ (1 : K) * (S_poly mo f g hf hg) := by
+  intro lmf lmg αf βg αf_ne_0 βg_ne_0 lcm_fg lcm_αfβg γ
+  rw [mul_comm]
+  have lcm_le_lcm' : lcm_fg ≤ lcm_αfβg := by
+    intro x
+    simp [lcm_fg, lcm_αfβg, lcm_monomial]
+    cases Nat.le_total (lmf x) (lmg x) with
+    | inl lmfx_le_lmgx => exact Or.inr (le_add_of_le_right lmfx_le_lmgx)
+    | inr lmgx_le_lmfx => exact Or.inl (le_add_of_le_right lmgx_le_lmfx)
+  simp [S_poly, S_pair]
+  rw [mul_sub_right_distrib]
+  have lcf_eq_lcαf : f.coeff lmf = αf.coeff (leading_monomial' mo αf αf_ne_0) := by
+    simp [αf]
+    rw [lm'_monmul_commute mo f hf _ _ one_ne_zero]
+    simp only [MvPolynomial.coeff_mul_monomial, mul_one]
+    rfl
+  have lcg_eq_lcβg : g.coeff lmg = βg.coeff (leading_monomial' mo βg βg_ne_0) := by
+    simp [βg]
+    rw [lm'_monmul_commute mo g hg _ _ one_ne_zero]
+    simp only [MvPolynomial.coeff_mul_monomial, mul_one]
+    rfl
+  have sub_eq_sub_of_eq_eq (a b c d : MvPolynomial σ K) (hab : a = b) (hcd : c = d)
+    : a - c = b - d := by simp [hab, hcd]
+  have mul_eq_mul_of_eq_eq (a b c d : MvPolynomial σ K) (hab : a = b) (hcd : c = d)
+    : a * c = b * d := by simp [hab, hcd]
+  apply sub_eq_sub_of_eq_eq
+  · unfold γ
+    rw [← lcf_eq_lcαf]
+    conv in (occs := 1) αf => unfold αf
+    conv_lhs => simp [mul_assoc, add_comm]
+    conv_rhs => simp [mul_assoc]
+    apply mul_eq_mul_of_eq_eq
+    · rfl
+    · rw [MvPolynomial.monomial_eq_monomial_iff]
+      apply Or.inl
+      constructor
+      · conv_lhs =>
+          rw [add_comm]
+          rw [
+            ← tsub_tsub_assoc
+              (le_lcm_monomial _ _).1
+              (by
+                rw [lm'_monmul_commute mo f hf α 1 one_ne_zero]
+                simp only [le_add_iff_nonneg_left, zero_le])
+          ]
+        nth_rw 2 [lm'_monmul_commute mo f hf α 1 one_ne_zero]
+        simp only [add_tsub_cancel_right]
+        conv_rhs =>
+          rw [tsub_add_eq_add_tsub (le_lcm_monomial lmf lmg).1]
+          rw [← add_tsub_assoc_of_le lcm_le_lcm']
+          rw [add_comm]
+          rw [add_tsub_assoc_of_le (by rfl)]
+          simp [lcm_fg]
+        rw [lm'_monmul_commute mo f hf α 1 one_ne_zero]
+        rw [lm'_monmul_commute mo g hg β 1 one_ne_zero]
+        unfold lmf
+        simp only [lcm_αfβg]
+        rw [add_comm α lmf, add_comm β lmg]
+      · rfl
+  · unfold γ
+    rw [← lcg_eq_lcβg]
+    conv in (occs := 1) βg => unfold βg
+    conv_lhs => simp [mul_assoc, add_comm]
+    conv_rhs => simp [mul_assoc]
+    apply mul_eq_mul_of_eq_eq
+    · rfl
+    · rw [MvPolynomial.monomial_eq_monomial_iff]
+      apply Or.inl
+      constructor
+      · conv_lhs =>
+          rw [add_comm]
+          rw [
+            ← tsub_tsub_assoc
+              (le_lcm_monomial _ _).2
+              (by
+                rw [lm'_monmul_commute mo g hg β 1 one_ne_zero]
+                simp only [le_add_iff_nonneg_left, zero_le])
+          ]
+        nth_rw 2 [lm'_monmul_commute mo g hg β 1 one_ne_zero]
+        simp only [add_tsub_cancel_right]
+        conv_rhs =>
+          rw [tsub_add_eq_add_tsub (le_lcm_monomial lmf lmg).2]
+          rw [← add_tsub_assoc_of_le lcm_le_lcm']
+          rw [add_comm]
+          rw [add_tsub_assoc_of_le (by rfl)]
+          simp [lcm_fg]
+        rw [lm'_monmul_commute mo f hf α 1 one_ne_zero]
+        rw [lm'_monmul_commute mo g hg β 1 one_ne_zero]
+        unfold lmg
+        simp only [lcm_αfβg]
+        rw [add_comm α lmf, add_comm β lmg]
+      · rfl
+
+lemma mul_term_spoly {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (f g : MvPolynomial σ K) (hf : f ≠ 0) (hg : g ≠ 0)
+  (α β : σ →₀ ℕ) (c1 c2 : K) (hc1 : c1 ≠ 0) (hc2 : c2 ≠ 0)
+  : let lmf := leading_monomial' mo f hf
+    let lmg := leading_monomial' mo g hg
+    let c1αf := f * MvPolynomial.monomial α c1
+    let c2βg := g * MvPolynomial.monomial β c2
+    let c1αf_ne_0 : c1αf ≠ 0 := by unfold c1αf; exact mul_ne_zero hf (by simp [hc1])
+    let c2βg_ne_0 : c2βg ≠ 0 := by unfold c2βg; exact mul_ne_zero hg (by simp [hc2])
+    let lcm_fg := lcm_monomial lmf lmg
+    let lcm_αfβg := lcm_monomial (α + lmf) (β + lmg)
+    let γ := lcm_αfβg - lcm_fg
+    S_poly mo c1αf c2βg c1αf_ne_0 c2βg_ne_0
+  = MvPolynomial.monomial γ (1 : K) * (S_poly mo f g hf hg) := by
+  simp
+  have key := mul_mon_spoly mo f g hf hg α β
+  simp at key
+  rw [← key]
+  have c1αf_eq
+    : f * (MvPolynomial.monomial α) c1 = c1 • (f * (MvPolynomial.monomial α) (1 : K)) := by
+    conv_lhs =>
+      rw [← mul_one c1, ← smul_eq_mul c1 (1 : K), ← MvPolynomial.smul_monomial c1, mul_smul_comm]
+  have c2βg_eq
+    : g * (MvPolynomial.monomial β) c2 = c2 • (g * (MvPolynomial.monomial β) (1 : K)) := by
+    conv_lhs =>
+      rw [← mul_one c2, ← smul_eq_mul c2 (1 : K), ← MvPolynomial.smul_monomial c2, mul_smul_comm]
+  rw [
+    eq_S_poly_of_eq_eq mo _ _ _ _ c1αf_eq c2βg_eq
+      (Or.inl (mul_ne_zero hf (by simp [hc1])))
+      (Or.inl (mul_ne_zero hg (by simp [hc2])))
+  ]
+  apply Eq.symm
+  exact smul_spoly mo _ _ _ _ c1 c2 hc1 hc2
+
+lemma sum_ite_rewrite {α β : Type*} [DecidableEq α] [AddCommMonoid β]
+  {s : Finset α} {p q : α → Prop} [DecidablePred p] [DecidablePred q]
+  {f g : α → β} (h : ∀ x ∈ s, p x ↔ q x)
+  : (∑ x ∈ s, if p x then f x else g x)
+  = (∑ x ∈ s, if q x then f x else g x) := by
+  apply Finset.sum_congr rfl
+  intro x hx
+  simp_all
+
+lemma syzygy_lemma {σ K ι : Type*} [DecidableEq σ] [Field K] [DecidableEq K] [DecidableEq ι]
+  (mo : MonomialOrder σ) (s : Finset ι) (φ : ι → MvPolynomial σ K) (δ : σ →₀ ℕ)
+  (φi_ne_0 : ∀ i ∈ s, φ i ≠ 0)
+  (lmφi_eq_δ : ∀ (i : ι) (his : i ∈ s), leading_monomial' mo (φ i) (φi_ne_0 i his) = δ)
+  (lm_sum_lt_δ : WithBot.map mo.toSyn (leading_monomial mo (∑ i ∈ s, φ i)) < mo.toSyn δ)
+  : ∃ C : ι → ι → K,
+    ∑ i ∈ s, φ i
+    = ∑ (i ∈ s.attach) (j ∈ s.attach),
+        C i.1 j.1 • S_poly mo (φ i.1) (φ j.1) (φi_ne_0 i.1 i.2) (φi_ne_0 j.1 j.2) := by
+  have spoly_φ_eq (i j : ι) (his : i ∈ s) (hjs : j ∈ s)
+    : S_poly mo (φ i) (φ j) (φi_ne_0 i his) (φi_ne_0 j hjs)
+    = ((φ i).coeff (leading_monomial' mo (φ i) (φi_ne_0 i his)))⁻¹ • φ i
+      - ((φ j).coeff (leading_monomial' mo (φ j) (φi_ne_0 j hjs)))⁻¹ • φ j := by
+    simp [S_poly, S_pair]
+    rw [lmφi_eq_δ i his, lmφi_eq_δ j hjs]
+    simp [self_lcm_monomial_eq_self δ]
+    conv in (occs := 1 2) (_ * MvPolynomial.C _) => all_goals rw [mul_comm]
+    simp [MvPolynomial.C_mul']
+  cases em (s = ∅) with
+  | inl s_empty =>
+    subst s
+    simp
+  | inr s_nonempty =>
+    push_neg at s_nonempty
+    rw [← Finset.nonempty_iff_ne_empty, Finset.Nonempty] at s_nonempty
+    rcases s_nonempty with ⟨k, hks⟩
+    exists
+      λ i j =>
+        if his : i ∈ s
+          then (if j = k then (φ i).coeff (leading_monomial' mo (φ i) (φi_ne_0 i his)) else 0)
+          else 0
+    simp
+    rw [
+      Finset.sum_product_right' s.attach s.attach
+      (λ i j =>
+        if j = k
+          then (φ i).coeff (leading_monomial' mo (φ i) (by simp [φi_ne_0 i]))
+                • S_poly mo (φ i) (φ j) (by simp [φi_ne_0 i]) (by simp [φi_ne_0 j])
+          else 0)
+    ]
+    simp only [Finset.sum_ite_irrel, Finset.sum_const_zero]
+    have s_attach_mem_eq_k_iff : ∀ x ∈ s.attach, x.1 = k ↔ x = ⟨k, hks⟩ := by simp
+    rw [sum_ite_rewrite s_attach_mem_eq_k_iff]
+    simp only [Finset.sum_ite_eq', Finset.mem_attach, ↓reduceIte]
+    have spoly_φ_sum_eq_1
+      : ∑ x ∈ s.attach,
+          (φ x.1).coeff (leading_monomial' mo (φ x.1) (φi_ne_0 x.1 x.2))
+          • S_poly mo (φ x.1) (φ k) (φi_ne_0 x.1 x.2) (φi_ne_0 k hks)
+      = ∑ x ∈ s.attach,
+          (φ x.1).coeff (leading_monomial' mo (φ x.1) (φi_ne_0 x.1 x.2))
+          • (((φ x.1).coeff (leading_monomial' mo (φ x.1) (φi_ne_0 x.1 x.2)))⁻¹ • φ x.1 -
+             ((φ k).coeff (leading_monomial' mo (φ k) (φi_ne_0 k hks)))⁻¹ • φ k) := by
+      apply Finset.sum_congr rfl
+      intro x x_mem_s_att
+      rw [spoly_φ_eq x.1 k x.2 hks]
+    have spoly_φ_sum_eq_2
+      : ∑ x ∈ s.attach,
+          (φ x.1).coeff (leading_monomial' mo (φ x.1) (φi_ne_0 x.1 x.2))
+          • (((φ x.1).coeff (leading_monomial' mo (φ x.1) (φi_ne_0 x.1 x.2)))⁻¹ • φ x.1 -
+             ((φ k).coeff (leading_monomial' mo (φ k) (φi_ne_0 k hks)))⁻¹ • φ k)
+      = ∑ x ∈ s.attach, φ x.1
+        - (∑ x ∈ s.attach, (φ x.1).coeff (leading_monomial' mo (φ x.1) (φi_ne_0 x.1 x.2)))
+          • ((φ k).coeff (leading_monomial' mo (φ k) (φi_ne_0 k hks)))⁻¹ • φ k := by
+      rw [Finset.sum_smul, ← Finset.sum_sub_distrib]
+      apply Finset.sum_congr rfl
+      intro x x_mem_s_att
+      rw [smul_sub, smul_smul, mul_inv_cancel₀ (lc_not_zero mo _ _), one_smul]
+    rw [spoly_φ_sum_eq_1, spoly_φ_sum_eq_2]
+    simp only [Finset.sum_attach]
+    have sum_lc_eq_0
+      : ∑ x ∈ s.attach, (φ x.1).coeff (leading_monomial' mo (φ x.1) (φi_ne_0 x.1 x.2)) = 0 := by
+      calc
+        _ = ∑ x ∈ s.attach, (φ x.1).coeff δ := by
+          apply Finset.sum_congr rfl
+          intro x x_mem_s_att
+          rw [lmφi_eq_δ x.1 x.2]
+        _ = (∑ x ∈ s.attach, φ x.1).coeff δ := by
+          rw [MvPolynomial.coeff_sum]
+        _ = (∑ x ∈ s, φ x).coeff δ := by
+          rw [Finset.sum_attach]
+      by_contra sum_coeff_δ_ne_0
+      apply lt_irrefl (WithBot.some (mo.toSyn δ))
+      push_neg at sum_coeff_δ_ne_0
+      rw [← MvPolynomial.mem_support_iff] at sum_coeff_δ_ne_0
+      rw [← Finset.mem_map' mo.toSyn.toEmbedding] at sum_coeff_δ_ne_0
+      have : mo.toSyn.toEmbedding δ = mo.toSyn δ := by
+        simp only [AddEquiv.toEquiv_eq_coe, Equiv.coe_toEmbedding, EquivLike.coe_coe]
+      rw [this] at sum_coeff_δ_ne_0
+      apply Finset.le_max at sum_coeff_δ_ne_0
+      have lm_sum_eq
+        : (Finset.map mo.toSyn.toEmbedding (∑ x ∈ s, φ x).support).max
+        = WithBot.map (⇑mo.toSyn) (leading_monomial mo (∑ i ∈ s, φ i)) := by
+        simp [leading_monomial, max_monomial, WithBot.map] -- 참조: Option.map_comp_map
+      rw [lm_sum_eq] at sum_coeff_δ_ne_0
+      exact lt_of_le_of_lt sum_coeff_δ_ne_0 lm_sum_lt_δ
+    rw [sum_lc_eq_0, zero_smul, sub_zero]
+
 /-- A polynomial `f` reduces to zero (or has a standard representation) over
 a finite polynomial set `G` (under a fixed monomial order `mo`), if `f` is a
 polynomial combination over `G` where the leading monomial of each summand doesn't
@@ -187,7 +618,7 @@ lemma red_0_iff_neg_red_0 {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq
   constructor
   · intro ⟨A, f_sum_A, summand_lm_le_lmf⟩
     exists -A
-    simp_all only [not_or, Pi.neg_apply, neg_mul, Finset.sum_neg_distrib, true_and]
+    simp_all only [Pi.neg_apply, neg_mul, Finset.sum_neg_distrib, true_and]
     intro g g_mem_G Agg_ne_0
     rw [neg_ne_zero] at Agg_ne_0
     rw [← lm'_neg_eq_lm' mo (A g * g) Agg_ne_0]
@@ -195,7 +626,7 @@ lemma red_0_iff_neg_red_0 {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq
     exact summand_lm_le_lmf g g_mem_G Agg_ne_0
   · intro ⟨A, f_sum_A, summand_lm_le_lmf⟩
     exists -A
-    simp_all only [not_or, Pi.neg_apply, neg_mul, Finset.sum_neg_distrib, true_and]
+    simp_all only [Pi.neg_apply, neg_mul, Finset.sum_neg_distrib]
     rw [neg_eq_iff_eq_neg] at f_sum_A
     constructor
     · exact f_sum_A
@@ -417,7 +848,616 @@ reduces to zero over `G`, then `G` is a Groebner basis (of its ideal span). -/
 lemma buchberger_tfae_3 {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G)
   : every_S_poly_red_0 mo G hG → is_groebner mo G (Ideal.span G) := by
-  sorry
+  intro GS_red_0'
+  cases em (G = ∅) with
+  | inl G_empty =>
+    subst G
+    simp [is_groebner, leading_monomials, leading_monomials_fin]
+    simp [lm_zero_eq_bot, ← WithBot.none_eq_bot]
+  | inr G_nonempty =>
+    push_neg at G_nonempty
+    rw [← Finset.nonempty_iff_ne_empty] at G_nonempty
+    unfold every_S_poly_red_0 at GS_red_0'
+    unfold reduces_to_zero at GS_red_0'
+    rw [groebner_iff_ideal_leadterm_mem_initI]
+    intro f f_mem_IG f_ne_0 lmf lcf ltf
+    rw [Ideal.span, Submodule.mem_span_finset] at f_mem_IG
+    simp only [smul_eq_mul] at f_mem_IG
+    let fG_repns :=
+      { h : MvPolynomial σ K → MvPolynomial σ K
+        | h.support ⊆ G ∧ ∑ g ∈ G, h g * g = f }
+    have fG_repns_nonempty : fG_repns.Nonempty := by
+      simp only [Set.Nonempty, Set.mem_setOf_eq, fG_repns]
+      exact f_mem_IG
+    let fG_repn_max_lm (h : MvPolynomial σ K → MvPolynomial σ K) :=
+      (G.image (λ g => WithBot.map mo.toSyn (leading_monomial mo (h g * g)))).max'
+      (by simp only [Finset.image_nonempty, G_nonempty])
+    let hδ' := Function.argminOn fG_repn_max_lm fG_repns fG_repns_nonempty
+    have hδ_repn_fG : hδ' ∈ fG_repns := by simp [fG_repns, hδ']
+    let wbδ' := fG_repn_max_lm hδ'
+    have lmf_le_lm_repn
+      : ∀ h ∈ fG_repns, WithBot.map mo.toSyn (leading_monomial mo f) ≤ fG_repn_max_lm h := by
+      intro h h_mem_fG_repns
+      simp only [Set.mem_setOf_eq, fG_repns] at h_mem_fG_repns
+      unfold fG_repn_max_lm
+      by_contra HC
+      push_neg at HC
+      simp [lm_coe_lm' mo f f_ne_0] at HC
+      have summand_coeff_lmf_eq_0
+        : ∀ g ∈ G, (h g * g).coeff (leading_monomial' mo f f_ne_0) = 0 := by
+        intro g g_mem_G
+        have HCg := HC g g_mem_G
+        cases em (h g * g = 0) with
+        | inl hgg_eq_0 =>
+          simp [hgg_eq_0]
+        | inr hgg_ne_0 =>
+          push_neg at hgg_ne_0
+          simp [lm_coe_lm' mo (h g * g) hgg_ne_0] at HCg
+          rw [← MvPolynomial.notMem_support_iff]
+          by_contra lmf_supp_hgg
+          have HCg' := mem_le_lm' mo (h g * g) hgg_ne_0 _ lmf_supp_hgg
+          apply lt_irrefl (mo.toSyn (leading_monomial' mo f f_ne_0))
+          exact lt_of_le_of_lt HCg' HCg
+      have hgg_sum_coeff_lmf_eq_0
+        : (∑ g ∈ G, h g * g).coeff (leading_monomial' mo f f_ne_0) = 0 := by
+        simp [MvPolynomial.coeff_sum]
+        exact Finset.sum_eq_zero summand_coeff_lmf_eq_0
+      rw [h_mem_fG_repns.2, ← MvPolynomial.notMem_support_iff] at hgg_sum_coeff_lmf_eq_0
+      exact hgg_sum_coeff_lmf_eq_0 (lm'_mem mo f f_ne_0)
+    have lmf_le_lm_hδgg := lmf_le_lm_repn hδ' hδ_repn_fG
+    have wbδ_ne_bot : wbδ' ≠ ⊥ := by -- 참조: WithBot.ne_bot_iff_exists
+      unfold wbδ'
+      by_contra wbδ_eq_bot
+      simp [wbδ_eq_bot, lm_coe_lm' mo f f_ne_0] at lmf_le_lm_hδgg
+    rcases WithBot.ne_bot_iff_exists.mp wbδ_ne_bot with ⟨δ', wbδ_eq_coe_δ⟩
+    let δ := mo.toSyn.symm δ'
+    subst wbδ'
+    simp [← wbδ_eq_coe_δ, lm_coe_lm' mo f f_ne_0] at lmf_le_lm_hδgg
+    cases @lt_or_eq_of_le mo.syn _ _ _ lmf_le_lm_hδgg with
+    | inl lmf_lt_δ =>
+      have hδ_argmin : ∀ h ∈ fG_repns, fG_repn_max_lm hδ' ≤ fG_repn_max_lm h := by
+        intro h hh_fG_repn
+        unfold hδ'
+        exact Function.argminOn_le fG_repn_max_lm fG_repns hh_fG_repn fG_repns_nonempty
+      let filG_eq := G.filter (λ g => WithBot.map mo.toSyn (leading_monomial mo (hδ' g * g)) = δ')
+      have filG_eq_subs_G : filG_eq ⊆ G := by simp [filG_eq]
+      let filG_lt := G \ filG_eq
+      have filG_disj : Disjoint filG_eq filG_lt := Finset.disjoint_sdiff
+      have G_filG_disjU : G = filG_eq.disjUnion filG_lt filG_disj := by
+        simp [filG_lt, filG_eq]
+      have mem_filG_lt
+        : ∀ g ∈ filG_lt, WithBot.map mo.toSyn (leading_monomial mo (hδ' g * g)) < δ' := by
+        intro g g_mem_filG_lt
+        simp [filG_lt, filG_eq] at g_mem_filG_lt
+        rcases g_mem_filG_lt with ⟨g_mem_G, lmhδgg_ne_δ⟩
+        have lmhδgg_ne_δ := lmhδgg_ne_δ g_mem_G
+        apply Ne.lt_of_le lmhδgg_ne_δ -- now enough to show (≤)
+        rw [wbδ_eq_coe_δ]
+        simp [fG_repn_max_lm]
+        apply Finset.le_max'
+        simp only [Finset.mem_image]
+        exists g
+      have ⟨hδ_supp_G, hδG_repn_f⟩ := Set.mem_setOf.mp hδ_repn_fG
+      rw [G_filG_disjU, Finset.sum_disjUnion] at hδG_repn_f
+      have hδg_ne_0_in_filG_eq (g : MvPolynomial σ K) (hg : g ∈ filG_eq)
+        : hδ' g ≠ 0 := by
+        by_contra hδg_eq_0
+        simp [filG_eq] at hg
+        rcases hg with ⟨g_mem_G, lmhδgg_eq_δ⟩
+        simp [hδg_eq_0, lm_zero_eq_bot, WithBot.map_bot] at lmhδgg_eq_δ
+      have g_ne_0_in_filG_eq (g : MvPolynomial σ K) (hg : g ∈ filG_eq)
+        : g ≠ 0 := by
+        apply ne_of_mem_of_not_mem _ hG
+        simp [hg, G_filG_disjU]
+      have mem_filG_eq_lm_decomp' (g : MvPolynomial σ K) (hg : g ∈ filG_eq)
+        : mo.toSyn (leading_monomial' mo (hδ' g) (hδg_ne_0_in_filG_eq g hg))
+        + mo.toSyn (leading_monomial' mo g (g_ne_0_in_filG_eq g hg))
+        = δ' := by
+        let hg_ := hg
+        simp [filG_eq] at hg_
+        let hgδ := hg_.2
+        rw [lm_coe_lm' mo _ (mul_ne_zero (hδg_ne_0_in_filG_eq g hg) (g_ne_0_in_filG_eq g hg))] at hgδ
+        simp only [WithBot.map_coe, WithBot.coe_inj] at hgδ
+        simp [← lm'_mul_commute mo (hδ' g) g (hδg_ne_0_in_filG_eq g hg) (g_ne_0_in_filG_eq g hg)] at hgδ
+        exact hgδ
+      have mem_filG_eq_lm_decomp (g : MvPolynomial σ K) (hg : g ∈ filG_eq)
+        : leading_monomial' mo (hδ' g) (hδg_ne_0_in_filG_eq g hg)
+        + leading_monomial' mo g (g_ne_0_in_filG_eq g hg)
+        = δ := by
+        unfold δ
+        simp [AddEquiv.eq_symm_apply mo.toSyn]
+        exact mem_filG_eq_lm_decomp' g hg
+      let leadterm_hδ (g : MvPolynomial σ K) (hg : g ∈ filG_eq) : MvPolynomial σ K :=
+        let lmhδg := leading_monomial' mo (hδ' g) (hδg_ne_0_in_filG_eq g hg)
+        MvPolynomial.monomial lmhδg ((hδ' g).coeff lmhδg)
+      have leadterm_hδ_ne_0 (g : MvPolynomial σ K) (hg : g ∈ filG_eq)
+        : leadterm_hδ g hg ≠ 0 := by
+        simp [leadterm_hδ]
+        exact lc_not_zero mo (hδ' g) (hδg_ne_0_in_filG_eq g hg)
+      rw [← Finset.sum_attach filG_eq (λ g => hδ' g * g)] at hδG_repn_f
+      have hδ_filG_eq_split
+        : ∑ g ∈ filG_eq.attach, hδ' g.1 * g.1
+        = ∑ g ∈ filG_eq.attach, leadterm_hδ g.1 g.2 * g.1
+        + ∑ g ∈ filG_eq.attach, (hδ' g.1 - leadterm_hδ g.1 g.2) * g.1 := by
+        rw [← Finset.sum_add_distrib]
+        ring_nf
+        apply Finset.sum_congr rfl
+        intro ⟨g, hg⟩ mem_filG_eq
+        rw [mul_comm]
+      rw [hδ_filG_eq_split] at hδG_repn_f
+      have filG_eq_sublm_lm_lt_δ
+        : ∀ g ∈ filG_eq.attach,
+            WithBot.map (⇑mo.toSyn) (leading_monomial mo ((hδ' g.1 - leadterm_hδ g.1 g.2) * g.1)) < ↑δ' := by
+        intro g g_mem_filG_eq
+        cases em (hδ' g.1 - leadterm_hδ g.1 g.2 = 0) with
+        | inl sub_lm_eq_0 =>
+          simp [sub_lm_eq_0, lm_zero_eq_bot, WithBot.map_bot]
+        | inr sub_lm_ne_0 =>
+          rw [
+            lm_coe_lm' mo
+              ((hδ' g.1 - leadterm_hδ g.1 g.2) * g.1)
+              (mul_ne_zero sub_lm_ne_0 (g_ne_0_in_filG_eq g.1 g.2))
+          ]
+          simp only [WithBot.map_coe, WithBot.coe_lt_coe]
+          simp [← lm'_mul_commute mo _ _ sub_lm_ne_0 (g_ne_0_in_filG_eq g.1 g.2)]
+          rw [← mem_filG_eq_lm_decomp' g.1 g.2]
+          simp only [add_lt_add_iff_right]
+          have key := lm_sub_leadterm_lt_lm mo (hδ' g.1) (hδg_ne_0_in_filG_eq g.1 g.2)
+          simp at key
+          simp [leadterm_hδ]
+          simp [leadterm_hδ] at sub_lm_ne_0
+          simp [lm_coe_lm' mo _ sub_lm_ne_0] at key
+          exact key
+      have sum_filG_eq_sublm_lm_lt_δ
+        : WithBot.map mo.toSyn
+            (leading_monomial mo (∑ g ∈ filG_eq.attach, (hδ' g.1 - leadterm_hδ g.1 g.2) * g.1))
+          < δ' := by
+        have key :=
+          lm_sum_lt_of_all_lm_lt mo filG_eq.attach
+            (λ g => (hδ' g.1 - leadterm_hδ g.1 g.2) * g.1)
+            (mo.toSyn.symm δ')
+        simp only [AddEquiv.apply_symm_apply] at key
+        apply key
+        exact filG_eq_sublm_lm_lt_δ
+      have sum_filG_lt_lm_lt_δ
+        : WithBot.map mo.toSyn
+            (leading_monomial mo (∑ x ∈ filG_lt, hδ' x * x))
+          < δ' := by
+        have key := lm_sum_lt_of_all_lm_lt mo filG_lt (λ g => hδ' g * g) (mo.toSyn.symm δ')
+        simp only [AddEquiv.apply_symm_apply] at key
+        apply key
+        exact mem_filG_lt
+      have sum_filG_eq_lm_lt_δ
+        : WithBot.map mo.toSyn
+            (leading_monomial mo (∑ g ∈ filG_eq.attach, leadterm_hδ g.1 g.2 * g.1))
+          < δ' := by
+        apply eq_add_neg_of_add_eq at hδG_repn_f
+        apply eq_add_neg_of_add_eq at hδG_repn_f
+        rw [hδG_repn_f]
+        conv_rhs => rw [← AddEquiv.apply_symm_apply mo.toSyn δ']
+        apply lm_add_lt_of_both_lm_lt_mon
+        · apply lm_add_lt_of_both_lm_lt_mon
+          · simp [lm_coe_lm' mo f f_ne_0, lmf_lt_δ]
+          · simp [← lm_neg_eq_lm, sum_filG_lt_lm_lt_δ]
+        · simp [← lm_neg_eq_lm, sum_filG_eq_sublm_lm_lt_δ]
+      conv at sum_filG_eq_lm_lt_δ => rw [← AddEquiv.apply_symm_apply mo.toSyn δ']
+      apply
+        syzygy_lemma mo filG_eq.attach _ _
+        (by
+          intro ⟨g, hg⟩ _
+          apply mul_ne_zero
+          · simp [leadterm_hδ]
+            exact lc_not_zero mo (hδ' g) (hδg_ne_0_in_filG_eq g hg)
+          · exact g_ne_0_in_filG_eq g hg)
+        (by
+          intro ⟨g, hg⟩ _
+          let hg_ := hg
+          simp [
+            filG_eq,
+            lm_coe_lm' mo (hδ' g * g)
+              (mul_ne_zero (hδg_ne_0_in_filG_eq g hg) (g_ne_0_in_filG_eq g hg)),
+            WithBot.map_coe
+          ] at hg_
+          simp [← hg_.2]
+          rw [← lm'_mul_commute mo (leadterm_hδ g hg) g (leadterm_hδ_ne_0 g hg) (g_ne_0_in_filG_eq g hg)]
+          rw [← lm'_mul_commute mo (hδ' g) g (hδg_ne_0_in_filG_eq g hg) (g_ne_0_in_filG_eq g hg)]
+          simp [leadterm_hδ]
+          exact lm'_mon mo _ _ (lc_not_zero mo (hδ' g) (hδg_ne_0_in_filG_eq g hg)))
+        at sum_filG_eq_lm_lt_δ
+      rcases sum_filG_eq_lm_lt_δ with ⟨C_spoly, sum_filG_spoly⟩
+      simp at sum_filG_spoly
+      have filG_eq_prod_sum_eq_1
+        : ∑ i ∈ filG_eq.attach, leadterm_hδ i.1 i.2 * i.1
+        = ∑ x ∈ filG_eq.attach ×ˢ filG_eq.attach,
+            C_spoly x.1 x.2 •
+              S_poly mo (leadterm_hδ x.1.1 x.1.2 * x.1.1) (leadterm_hδ x.2.1 x.2.2 * x.2.1)
+                (mul_ne_zero (leadterm_hδ_ne_0 x.1.1 x.1.2) (g_ne_0_in_filG_eq x.1.1 x.1.2))
+                (mul_ne_zero (leadterm_hδ_ne_0 x.2.1 x.2.2) (g_ne_0_in_filG_eq x.2.1 x.2.2)) := by
+        rw [sum_filG_spoly]
+        rw [Finset.sum_product, Finset.sum_product]
+        rw [
+          Finset.sum_attach filG_eq.attach
+            (λ x =>
+              ∑ y ∈ filG_eq.attach.attach,
+                C_spoly x y.1 •
+                  S_poly mo (leadterm_hδ x.1 x.2 * x.1) (leadterm_hδ y.1.1 y.1.2 * y.1.1)
+                    (mul_ne_zero (leadterm_hδ_ne_0 x.1 x.2) (g_ne_0_in_filG_eq x.1 x.2))
+                    (mul_ne_zero (leadterm_hδ_ne_0 y.1.1 y.1.2) (g_ne_0_in_filG_eq y.1.1 y.1.2)))
+        ]
+        apply Finset.sum_congr rfl
+        intro x _
+        rw [
+          Finset.sum_attach filG_eq.attach
+            (λ y =>
+              C_spoly x y •
+                S_poly mo (leadterm_hδ x.1 x.2 * x.1) (leadterm_hδ y.1 y.2 * y.1)
+                  (mul_ne_zero (leadterm_hδ_ne_0 x.1 x.2) (g_ne_0_in_filG_eq x.1 x.2))
+                  (mul_ne_zero (leadterm_hδ_ne_0 y.1 y.2) (g_ne_0_in_filG_eq y.1 y.2)))
+        ]
+      rw [filG_eq_prod_sum_eq_1] at hδG_repn_f
+      have filG_eq_prod_sum_eq_2
+        : ∑ x ∈ filG_eq.attach ×ˢ filG_eq.attach,
+            C_spoly x.1 x.2 •
+              S_poly mo (leadterm_hδ x.1.1 x.1.2 * x.1.1) (leadterm_hδ x.2.1 x.2.2 * x.2.1)
+                (mul_ne_zero (leadterm_hδ_ne_0 x.1.1 x.1.2) (g_ne_0_in_filG_eq x.1.1 x.1.2))
+                (mul_ne_zero (leadterm_hδ_ne_0 x.2.1 x.2.2) (g_ne_0_in_filG_eq x.2.1 x.2.2))
+        = ∑ x ∈ filG_eq.attach ×ˢ filG_eq.attach,
+            MvPolynomial.monomial
+              (δ -
+                lcm_monomial
+                  (leading_monomial' mo x.1.1 (g_ne_0_in_filG_eq x.1.1 x.1.2))
+                  (leading_monomial' mo x.2.1 (g_ne_0_in_filG_eq x.2.1 x.2.2)))
+              (C_spoly x.1 x.2) *
+            (S_poly mo x.1.1 x.2.1 (g_ne_0_in_filG_eq x.1.1 x.1.2) (g_ne_0_in_filG_eq x.2.1 x.2.2)) := by
+        apply Finset.sum_congr rfl
+        intro ⟨x, y⟩ _
+        simp [leadterm_hδ]
+        conv in _ * x.1 => rw [mul_comm]
+        conv in _ * y.1 => rw [mul_comm]
+        have x_ne_0 := g_ne_0_in_filG_eq x.1 x.2
+        have y_ne_0 := g_ne_0_in_filG_eq y.1 y.2
+        have hδx_ne_0 := hδg_ne_0_in_filG_eq x.1 x.2
+        have hδy_ne_0 := hδg_ne_0_in_filG_eq y.1 y.2
+        have key :=
+          mul_term_spoly mo x.1 y.1 x_ne_0 y_ne_0
+            (leading_monomial' mo (hδ' x.1) hδx_ne_0)
+            (leading_monomial' mo (hδ' y.1) hδy_ne_0)
+            ((hδ' x.1).coeff (leading_monomial' mo (hδ' x.1) hδx_ne_0))
+            ((hδ' y.1).coeff (leading_monomial' mo (hδ' y.1) hδy_ne_0))
+            (lc_not_zero mo (hδ' x.1) hδx_ne_0)
+            (lc_not_zero mo (hδ' y.1) hδy_ne_0)
+        simp at key
+        rw [key]
+        rw [mem_filG_eq_lm_decomp x.1 x.2, mem_filG_eq_lm_decomp y.1 y.2]
+        rw [self_lcm_monomial_eq_self δ]
+        rw [← smul_mul_assoc, MvPolynomial.smul_monomial (C_spoly x y)]
+        simp only [smul_eq_mul, mul_one]
+      rw [filG_eq_prod_sum_eq_2] at hδG_repn_f
+      simp only at GS_red_0'
+      have GS_red_0 (g1) (hg1 : g1 ∈ G) (g2) (hg2 : g2 ∈ G)
+        : let g1_ne_0 := ne_of_mem_of_not_mem hg1 hG
+          let g2_ne_0 := ne_of_mem_of_not_mem hg2 hG
+          let s12 := S_poly mo g1 g2 g1_ne_0 g2_ne_0
+          ∃ A : MvPolynomial σ K → MvPolynomial σ K,
+            s12 = ∑ g ∈ G, A g * g ∧
+            ∀ g ∈ G,
+              WithBot.map mo.toSyn (leading_monomial mo (A g * g))
+              ≤ WithBot.map mo.toSyn (leading_monomial mo s12) := by
+        intro g1_ne_0 g2_ne_0 s12
+        cases em (s12 = 0) with
+        | inl s12_eq_0 =>
+          exists 0
+          simp [s12_eq_0, lm_zero_eq_bot]
+        | inr s12_ne_0 =>
+          push_neg at s12_ne_0
+          subst s12
+          have key := GS_red_0' g1 hg1 g2 hg2 s12_ne_0
+          rcases key with ⟨A, A_S_repn, A_S_repn_std⟩
+          exists A, A_S_repn
+          intro g g_mem_G
+          cases em (A g * g = 0) with
+          | inl Agg_eq_0 =>
+            simp [Agg_eq_0, lm_zero_eq_bot]
+          | inr Agg_ne_0 =>
+            push_neg at Agg_ne_0
+            simp [
+              lm_coe_lm' mo (A g * g) Agg_ne_0,
+              lm_coe_lm' mo (S_poly mo g1 g2 g1_ne_0 g2_ne_0) s12_ne_0
+            ]
+            exact A_S_repn_std g g_mem_G Agg_ne_0
+      simp only at GS_red_0
+      let GSA (g1) (hg1 : g1 ∈ G) (g2) (hg2 : g2 ∈ G) := (GS_red_0 g1 hg1 g2 hg2).choose
+      have GSA_spec (g1) (hg1 : g1 ∈ G) (g2) (hg2 : g2 ∈ G)
+        : let g1_ne_0 := ne_of_mem_of_not_mem hg1 hG
+          let g2_ne_0 := ne_of_mem_of_not_mem hg2 hG
+          let s12 := S_poly mo g1 g2 g1_ne_0 g2_ne_0
+          s12 = ∑ g ∈ G, (GSA g1 hg1 g2 hg2) g * g ∧
+          ∀ g ∈ G,
+            WithBot.map (⇑mo.toSyn) (leading_monomial mo ((GSA g1 hg1 g2 hg2) g * g)) ≤
+              WithBot.map (⇑mo.toSyn) (leading_monomial mo s12) := by
+        simp [GSA]
+        exact (GS_red_0 g1 hg1 g2 hg2).choose_spec
+      have filG_eq_prod_sum_eq_3
+        : ∑ x ∈ filG_eq.attach ×ˢ filG_eq.attach,
+            MvPolynomial.monomial
+              (δ -
+                lcm_monomial
+                  (leading_monomial' mo x.1.1 (g_ne_0_in_filG_eq x.1.1 x.1.2))
+                  (leading_monomial' mo x.2.1 (g_ne_0_in_filG_eq x.2.1 x.2.2)))
+              (C_spoly x.1 x.2) *
+            (S_poly mo x.1.1 x.2.1 (g_ne_0_in_filG_eq x.1.1 x.1.2) (g_ne_0_in_filG_eq x.2.1 x.2.2))
+        = ∑ g ∈ G,
+            (∑ x ∈ filG_eq.attach ×ˢ filG_eq.attach,
+              MvPolynomial.monomial
+                (δ -
+                  lcm_monomial
+                    (leading_monomial' mo x.1.1 (g_ne_0_in_filG_eq x.1.1 x.1.2))
+                    (leading_monomial' mo x.2.1 (g_ne_0_in_filG_eq x.2.1 x.2.2)))
+                (C_spoly x.1 x.2) *
+              GSA x.1.1 (filG_eq_subs_G x.1.2) x.2.1 (filG_eq_subs_G x.2.2) g) * g := by
+        calc
+          _ =
+            ∑ x ∈ filG_eq.attach ×ˢ filG_eq.attach,
+              MvPolynomial.monomial
+                (δ -
+                  lcm_monomial
+                    (leading_monomial' mo x.1.1 (g_ne_0_in_filG_eq x.1.1 x.1.2))
+                    (leading_monomial' mo x.2.1 (g_ne_0_in_filG_eq x.2.1 x.2.2)))
+                (C_spoly x.1 x.2) *
+              ∑ g ∈ G, GSA x.1.1 (filG_eq_subs_G x.1.2) x.2.1 (filG_eq_subs_G x.2.2) g * g := by
+            apply Finset.sum_congr rfl
+            intro ⟨x, y⟩ _
+            simp only
+            simp only at GSA_spec
+            rw [(GSA_spec x.1 (filG_eq_subs_G x.2) y.1 (filG_eq_subs_G y.2)).1]
+          _ =
+            ∑ x ∈ filG_eq.attach ×ˢ filG_eq.attach, ∑ g ∈ G,
+              MvPolynomial.monomial
+                (δ -
+                  lcm_monomial
+                    (leading_monomial' mo x.1.1 (g_ne_0_in_filG_eq x.1.1 x.1.2))
+                    (leading_monomial' mo x.2.1 (g_ne_0_in_filG_eq x.2.1 x.2.2)))
+                (C_spoly x.1 x.2) *
+              GSA x.1.1 (filG_eq_subs_G x.1.2) x.2.1 (filG_eq_subs_G x.2.2) g * g := by
+            apply Finset.sum_congr rfl
+            intro ⟨x, y⟩ _
+            simp only
+            rw [Finset.mul_sum G]
+            apply Finset.sum_congr rfl
+            simp [mul_assoc]
+          _ =
+            ∑ g ∈ G,
+              (∑ x ∈ filG_eq.attach ×ˢ filG_eq.attach,
+                MvPolynomial.monomial
+                  (δ -
+                    lcm_monomial
+                      (leading_monomial' mo x.1.1 (g_ne_0_in_filG_eq x.1.1 x.1.2))
+                      (leading_monomial' mo x.2.1 (g_ne_0_in_filG_eq x.2.1 x.2.2)))
+                  (C_spoly x.1 x.2) *
+                GSA x.1.1 (filG_eq_subs_G x.1.2) x.2.1 (filG_eq_subs_G x.2.2) g) * g := by
+            rw [Finset.sum_comm]
+            apply Finset.sum_congr rfl
+            intro g g_mem_G
+            rw [Finset.sum_mul (filG_eq.attach ×ˢ filG_eq.attach)]
+      rw [filG_eq_prod_sum_eq_3] at hδG_repn_f
+      let B (g : MvPolynomial σ K) : MvPolynomial σ K :=
+        if hfG : g ∈ G
+          then
+            ∑ x ∈ filG_eq.attach ×ˢ filG_eq.attach,
+              MvPolynomial.monomial
+                (δ -
+                  lcm_monomial
+                    (leading_monomial' mo x.1.1 (g_ne_0_in_filG_eq x.1.1 x.1.2))
+                    (leading_monomial' mo x.2.1 (g_ne_0_in_filG_eq x.2.1 x.2.2)))
+                (C_spoly x.1 x.2) *
+              GSA x.1.1 (filG_eq_subs_G x.1.2) x.2.1 (filG_eq_subs_G x.2.2) g +
+            if hfG_eq : g ∈ filG_eq
+              then hδ' g - leadterm_hδ g hfG_eq
+              else hδ' g
+          else 0
+      absurd hδ_argmin
+      push_neg
+      exists B
+      constructor
+      · simp only [Function.support_subset_iff, Finset.mem_coe, Set.mem_setOf_eq, fG_repns]
+        constructor
+        · intro f
+          rw [← not_imp_not]
+          simp [B]
+          intro f_notin_G f_in_G
+          by_contra _
+          exact f_notin_G f_in_G
+        · simp [B]
+          calc
+            _ =
+              ∑ g ∈ G,
+                ((∑ x ∈ filG_eq.attach ×ˢ filG_eq.attach,
+                  MvPolynomial.monomial
+                    (δ -
+                      lcm_monomial
+                        (leading_monomial' mo x.1.1 (g_ne_0_in_filG_eq x.1.1 x.1.2))
+                        (leading_monomial' mo x.2.1 (g_ne_0_in_filG_eq x.2.1 x.2.2)))
+                    (C_spoly x.1 x.2) *
+                  GSA x.1.1 (filG_eq_subs_G x.1.2) x.2.1 (filG_eq_subs_G x.2.2) g) * g +
+                (if hfG_eq : g ∈ filG_eq
+                  then hδ' g - leadterm_hδ g hfG_eq
+                  else hδ' g) * g) := by
+              apply Finset.sum_congr rfl
+              intro g g_mem_G
+              apply right_distrib
+            _ =
+              ∑ g ∈ G,
+                (∑ x ∈ filG_eq.attach ×ˢ filG_eq.attach,
+                  MvPolynomial.monomial
+                    (δ -
+                      lcm_monomial
+                        (leading_monomial' mo x.1.1 (g_ne_0_in_filG_eq x.1.1 x.1.2))
+                        (leading_monomial' mo x.2.1 (g_ne_0_in_filG_eq x.2.1 x.2.2)))
+                    (C_spoly x.1 x.2) *
+                GSA x.1.1 (filG_eq_subs_G x.1.2) x.2.1 (filG_eq_subs_G x.2.2) g) * g +
+              ∑ g ∈ G,
+                (if hfG_eq : g ∈ filG_eq
+                  then hδ' g - leadterm_hδ g hfG_eq
+                  else hδ' g) * g := by
+              rw [Finset.sum_add_distrib, add_right_cancel_iff]
+            _ = f := by
+              rw [← hδG_repn_f, add_assoc, add_left_cancel_iff]
+              simp only [dite_mul, Finset.sum_dite]
+              have filG_eq_type (x : { x // x ∈ {x ∈ G | x ∈ filG_eq} }) : x.1 ∈ filG_eq := by
+                have x_prop := x.2
+                simp only [Finset.mem_filter] at x_prop
+                exact x_prop.2
+              have sum_1
+                : ∑ x : { x // x ∈ {x ∈ G | x ∈ filG_eq} }, (hδ' x.1 - leadterm_hδ x.1 (filG_eq_type x)) * x.1
+                = ∑ g ∈ filG_eq.attach, (hδ' g.1 - leadterm_hδ g.1 g.2) * g.1 := by
+                rw [Finset.sum_coe_sort_eq_attach]
+                let e_filG_eq (x : { x // x ∈ {x ∈ G | x ∈ filG_eq} }) : { x // x ∈ filG_eq } :=
+                  ⟨x.1, filG_eq_type x⟩
+                let e_filG_eq_inv (x : { x // x ∈ filG_eq }) : { x // x ∈ {x ∈ G | x ∈ filG_eq} } :=
+                  ⟨x.1, by simp only [Finset.mem_filter, Finset.coe_mem, and_true]; exact filG_eq_subs_G x.2⟩
+                have e_filG_eq_bij : e_filG_eq.Bijective := by
+                  rw [Function.bijective_iff_has_inverse]
+                  exists e_filG_eq_inv
+                  simp [Function.LeftInverse, Function.RightInverse, e_filG_eq, e_filG_eq_inv]
+                apply Finset.sum_bijective e_filG_eq e_filG_eq_bij
+                · simp [e_filG_eq]
+                · simp [e_filG_eq]
+              have filG_lt_type (x : { x // x ∈ {x ∈ G | x ∉ filG_eq} }) : x.1 ∈ filG_lt := by
+                simp [filG_lt, Finset.mem_sdiff]
+                have x_prop := x.2
+                simp only [Finset.mem_filter] at x_prop
+                exact x_prop
+              have filG_lt_type_inv (x : { x // x ∈ filG_lt }) : x.1 ∈ {x ∈ G | x ∉ filG_eq} := by
+                simp [Finset.mem_filter, ← Finset.mem_sdiff]
+              have sum_2
+                : ∑ x : { x // x ∈ {x ∈ G | x ∉ filG_eq} }, hδ' ↑x * ↑x = ∑ x ∈ filG_lt, hδ' x * x := by
+                conv_lhs => rw [Finset.sum_coe_sort {x ∈ G | x ∉ filG_eq} (λ x => hδ' x * x)]
+                apply Finset.sum_congr
+                · ext x
+                  simp only [Finset.mem_filter, Finset.mem_sdiff, filG_lt]
+                · intro _ _
+                  rfl
+              rw [sum_1, sum_2]
+      · simp [← wbδ_eq_coe_δ, fG_repn_max_lm, B]
+        intro g g_mem_G
+        split
+        next _ =>
+          rw [right_distrib, ← AddEquiv.apply_symm_apply mo.toSyn δ']
+          apply lm_add_lt_of_both_lm_lt_mon mo
+          · rw [Finset.sum_mul]
+            apply lm_sum_lt_of_all_lm_lt
+            intro ⟨g1, g2⟩ _
+            simp
+            let summand :=
+              MvPolynomial.monomial
+                (δ -
+                  lcm_monomial
+                    (leading_monomial' mo g1.1 (ne_of_mem_of_not_mem (filG_eq_subs_G g1.2) hG))
+                    (leading_monomial' mo g2.1 (ne_of_mem_of_not_mem (filG_eq_subs_G g2.2) hG)))
+                (C_spoly g1 g2) *
+              GSA g1.1 (filG_eq_subs_G g1.2) g2.1 (filG_eq_subs_G g2.2) g *
+              g
+            cases em (summand = 0) with
+            | inl summand_eq_0 =>
+              unfold summand at summand_eq_0
+              simp [summand_eq_0, lm_zero_eq_bot]
+            | inr summand_ne_0 =>
+              unfold summand at summand_ne_0
+              push_neg at summand_ne_0
+              conv in _ * _ * g => rw [mul_assoc]
+              conv at summand_ne_0 in _ * _ * g => rw [mul_assoc]
+              simp [lm_coe_lm' mo _ summand_ne_0]
+              rw [mul_ne_zero_iff] at summand_ne_0
+              rw [← lm'_mul_commute mo _ _ summand_ne_0.1 summand_ne_0.2]
+              rw [lm'_mon mo _ (C_spoly g1 g2) (by simp at summand_ne_0; exact summand_ne_0.1)]
+              rw [
+                ← add_lt_add_iff_right
+                  (mo.toSyn
+                    (lcm_monomial
+                      (leading_monomial' mo g1.1 (ne_of_mem_of_not_mem (filG_eq_subs_G g1.2) hG))
+                      (leading_monomial' mo g2.1 (ne_of_mem_of_not_mem (filG_eq_subs_G g2.2) hG)))),
+                ← AddEquiv.map_add,
+                add_assoc
+              ]
+              conv in leading_monomial' _ _ _ + lcm_monomial _ _ => rw [add_comm]
+              rw [← add_assoc]
+              have lcm_le_δ
+                : lcm_monomial
+                    (leading_monomial' mo g1.1 (ne_of_mem_of_not_mem (filG_eq_subs_G g1.2) hG))
+                    (leading_monomial' mo g2.1 (ne_of_mem_of_not_mem (filG_eq_subs_G g2.2) hG))
+                  ≤ δ := by
+                intro x
+                simp [lcm_monomial]
+                constructor
+                · rw [← mem_filG_eq_lm_decomp g1.1 g1.2]
+                  simp
+                · rw [← mem_filG_eq_lm_decomp g2.1 g2.2]
+                  simp
+              rw [monomial_sub_add _ _ lcm_le_δ]
+              simp [AddEquiv.map_add, δ]
+              rw [← WithBot.coe_lt_coe, ← WithBot.map_coe, ← WithBot.map_coe]
+              calc
+                _
+                ≤ WithBot.map mo.toSyn
+                  (leading_monomial mo
+                    (S_poly mo g1.1 g2.1
+                      (ne_of_mem_of_not_mem (filG_eq_subs_G g1.2) hG)
+                      (ne_of_mem_of_not_mem (filG_eq_subs_G g2.2) hG))) := by
+                  rw [← lm_coe_lm' mo]
+                  exact (GSA_spec g1.1 (filG_eq_subs_G g1.2) g2.1 (filG_eq_subs_G g2.2)).2 g g_mem_G
+                _ < _ := by
+                  exact lm_spoly_lt_lcm mo g1.1 g2.1 _ _
+          · simp only [AddEquiv.apply_symm_apply]
+            split
+            next g_mem_filG_eq =>
+              exact filG_eq_sublm_lm_lt_δ ⟨g, g_mem_filG_eq⟩ (by simp only [Finset.mem_attach])
+            next g_notMem_filG_eq =>
+              have g_mem_filG_lt : g ∈ filG_lt := by
+                simp only [filG_lt, Finset.mem_sdiff]
+                exact ⟨g_mem_G, g_notMem_filG_eq⟩
+              exact mem_filG_lt g g_mem_filG_lt
+        next g_not_mem_G =>
+          by_contra _
+          exact g_not_mem_G g_mem_G
+    | inr lmf_eq_δ =>
+      subst δ'
+      unfold fG_repn_max_lm at wbδ_eq_coe_δ
+      have key :=
+        Finset.max'_mem
+          (G.image (λ g => WithBot.map mo.toSyn (leading_monomial mo (hδ' g * g))))
+          (by simp only [Finset.image_nonempty, G_nonempty])
+      rw [← wbδ_eq_coe_δ, Finset.mem_image] at key
+      rcases key with ⟨g, g_mem_G, lmhδgg_eq_lmf⟩
+      have g_ne_0 : g ≠ 0 := ne_of_mem_of_not_mem g_mem_G hG
+      have hδgg_ne_0 : hδ' g * g ≠ 0 := by
+        by_contra hδgg_eq_0
+        rw [hδgg_eq_0, lm_zero_eq_bot, WithBot.map_bot] at lmhδgg_eq_lmf
+        exact WithBot.coe_ne_bot.symm lmhδgg_eq_lmf
+      have hδg_ne_0 : hδ' g ≠ 0 := by
+        simp at hδgg_ne_0
+        exact hδgg_ne_0.1
+      simp [lm_coe_lm' mo (hδ' g * g) hδgg_ne_0] at lmhδgg_eq_lmf
+      unfold ltf
+      rw [term_mem_moni_iff lmf _ lcf (lc_not_zero mo f f_ne_0)]
+      exists leading_monomial' mo g g_ne_0
+      constructor
+      · simp [leading_monomials_fin]
+        exists g, g_mem_G
+        rw [lm_coe_lm' mo g g_ne_0, WithBot.some_eq_coe]
+      · unfold lmf
+        rw [← lmhδgg_eq_lmf]
+        rw [← lm'_mul_commute mo (hδ' g) g hδg_ne_0 g_ne_0]
+        simp only [le_add_iff_nonneg_left, zero_le]
+
+/-- Buchberger criterion: `G` is a Groebner basis (of its ideal span)
+iff every S-polynomial of two distinct polynomials in `G` divides to
+remainder zero by `G` itself. -/
+theorem buchberger {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G) :
+  is_groebner mo G (Ideal.span G) ↔ every_S_poly_remainder_0 mo G hG := by
+  constructor
+  · exact buchberger_tfae_1 mo G hG
+  · exact buchberger_tfae_3 mo G hG ∘ buchberger_tfae_2 mo G hG
 
 /-- Refined Buchberger criterion: `G` is a Groebner basis (of its ideal span)
 iff every S-polynomial of two distinct polynomials in `G` reduces to zero over
