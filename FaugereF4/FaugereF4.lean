@@ -1,7 +1,8 @@
-import Mathlib
-import FaugereF4.MonomialIdeal
 import FaugereF4.GaussianElim
 import FaugereF4.GroebnerBasis
+import Mathlib.Algebra.Order.Ring.Star
+import Mathlib.Data.List.ToFinsupp
+import Mathlib.RingTheory.HopkinsLevitzki
 
 /-!
 # Faugere F4 algorithm
@@ -15,7 +16,8 @@ given a finite generator set.
 
 /-- WellFoundedRelation instance on the `WithTop syn` type of a monomial order;
 this is needed for termination proof of symbolic preprocessing. -/
-instance withtop_mo_syn_wf {σ : Type*} (mo : MonomialOrder σ) : WellFoundedRelation (WithTop mo.syn) :=
+instance withtop_mo_syn_wf {σ : Type*} (mo : MonomialOrder σ) :
+    WellFoundedRelation (WithTop mo.syn) :=
   WellFoundedLT.toWellFoundedRelation
 
 /-- The struct to iterate through symbolic preprocessing. -/
@@ -38,7 +40,8 @@ structure SymbProcStruct
   done_mons : Finset (σ →₀ ℕ)
   /-- `done_mons` is contained in Mon(H) in each step -/
   done_sub_H : done_mons ⊆ monomial_set H
-  /-- ⊤, or most recently considered monomial. This strictly decreases in `symbolic_preprocess_rec`. -/
+  /-- ⊤, or most recently considered monomial.
+  This strictly decreases in `symbolic_preprocess_rec`. -/
   last_mon : WithTop mo.syn
   /-- `last_mon` must be in `done_mons`, except for the first loop -/
   lmon_done (not_top : last_mon ≠ ⊤) :
@@ -62,8 +65,6 @@ structure SymbProcStruct
         (MvPolynomial.monomial α 1) * g ∈ H ∧
         leading_monomial mo ((MvPolynomial.monomial α 1) * g) = m)
 
-set_option maxHeartbeats 400000
-#count_heartbeats in
 /-- One step of symbolic preprocessing. This loop continues until the monomial set
 of `sps.H` is fully processed, i.e. each monomial in `sps.H` satisfies
 `sps.div_then_cont_mult`. -/
@@ -72,8 +73,7 @@ noncomputable def symbolic_preprocess_step {σ K : Type*}
   (mo : MonomialOrder σ)
   (G H0 : Finset (MvPolynomial σ K)) (hG : 0 ∉ G)
   (sps : SymbProcStruct σ K mo G H0)
-  (hmons : ¬sps.done_mons = monomial_set sps.H)
-  : SymbProcStruct σ K mo G H0 :=
+  (hmons : ¬sps.done_mons = monomial_set sps.H) : SymbProcStruct σ K mo G H0 :=
   let mon_H := monomial_set sps.H
   have monset_nonempty : (Finset.map mo.toSyn.toEmbedding (mon_H \ sps.done_mons)).Nonempty := by
     have : sps.done_mons ⊂ mon_H := by
@@ -580,7 +580,7 @@ lemma span_ge_symb_proc_red_0_induction {σ K : Type*} [Finite σ] [DecidableEq 
   : let sp_L := symbolic_preprocess mo G hG L hL hGL
     let ge_L' := gaussian_elim mo sp_L.H
     let N := ge_L'.SO
-    let N' := N.filter (λ n => ∀ l ∈ sp_L.H, ¬leading_monomial mo l ≤ leading_monomial mo n)
+    let N' := N.filter (fun n => ∀ l ∈ sp_L.H, ¬leading_monomial mo l ≤ leading_monomial mo n)
     let V : Submodule K (MvPolynomial σ K) := Submodule.span K sp_L.H
     ∀ μ' : mo.syn, ∀ f ∈ V,
       (f_ne_0 : f ≠ 0) →
@@ -667,7 +667,7 @@ lemma span_ge_symb_proc_red_0_induction {σ K : Type*} [Finite σ] [DecidableEq 
         rw [sub_eq_zero] at f'_eq_0
         let lmn := leading_monomial' mo n n_ne_0
         let cf := f.coeff lmn
-        let A : MvPolynomial σ K → MvPolynomial σ K := λ x => if x = n then MvPolynomial.C cf else 0
+        let A : MvPolynomial σ K → MvPolynomial σ K := fun x => if x = n then MvPolynomial.C cf else 0
         exists A
         subst A
         simp [Or.inr n_mem_N']
@@ -828,7 +828,7 @@ lemma span_ge_symb_proc_red_0_induction {σ K : Type*} [Finite σ] [DecidableEq 
       | inl f''_eq_0 =>
         subst f''
         rw [sub_eq_zero] at f''_eq_0
-        let A : MvPolynomial σ K → MvPolynomial σ K := λ x =>
+        let A : MvPolynomial σ K → MvPolynomial σ K := fun x =>
           if x = g
             then (MvPolynomial.monomial α) (f.coeff (leading_monomial' mo f f_ne_0) * (g.coeff (leading_monomial' mo g g_ne_0))⁻¹)
             else 0
@@ -887,7 +887,7 @@ lemma span_ge_symb_proc_red_0 {σ K : Type*} [Finite σ] [DecidableEq σ] [Field
   : let sp_L := symbolic_preprocess mo G hG L hL hGL
     let ge_L' := gaussian_elim mo sp_L.H
     let N := ge_L'.SO
-    let N' := N.filter (λ n => ∀ l ∈ sp_L.H, ¬leading_monomial mo l ≤ leading_monomial mo n)
+    let N' := N.filter (fun n => ∀ l ∈ sp_L.H, ¬leading_monomial mo l ≤ leading_monomial mo n)
     let V : Submodule K (MvPolynomial σ K) := Submodule.span K sp_L.H
     ∀ f ∈ V, (f_ne_0 : f ≠ 0) → reduces_to_zero mo f f_ne_0 (G ∪ N') := by
   intro sp_L ge_L' N N' V f f_mem_span f_ne_0
@@ -942,7 +942,7 @@ lemma ideal_span_eq_of_eq {α : Type*} [Semiring α] {s t : Set α} :
 
 /-- The full set of pairs (i, j) with i < j. This defines `F4Struct.i_pairs` in each step. -/
 def pair_set {τ : Type*} [LinearOrder τ] (S : Finset τ) : Finset (τ × τ) :=
-  (S ×ˢ S).filter (λ ⟨x, y⟩ => x < y)
+  (S ×ˢ S).filter (fun ⟨x, y⟩ => x < y)
 
 /-- Lemma on the elements of `pair_set (insert e S)` appended to `pair_set S`.
 Auxilliary lemma for `pair_set_insert_card`. -/
@@ -1088,7 +1088,7 @@ noncomputable def F4_step {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] 
   have i_pairs_proc_new_disj : Disjoint i_pairs_new f4s.i_pairs_proc :=
     (Finset.subset_sdiff.mp i_pairs_new_spec.2).2
   let ip_to_spair : Fin f4s.size × Fin f4s.size → Finset (MvPolynomial σ K) :=
-    (λ ⟨i, j⟩ =>
+    (fun ⟨i, j⟩ =>
       let s_pair := S_pair mo
         (f4s.G[i]'(by rw [f4s.G_len_eq_size]; exact i.isLt))
         (f4s.G[j]'(by rw [f4s.G_len_eq_size]; exact j.isLt))
@@ -1131,7 +1131,7 @@ noncomputable def F4_step {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] 
   let L' := symb_proc_L.H
   let ge_L' := gaussian_elim mo L'
   let N := ge_L'.SO
-  let N' := N.filter (λ n => ∀ l ∈ L', ¬leading_monomial mo l ≤ leading_monomial mo n)
+  let N' := N.filter (fun n => ∀ l ∈ L', ¬leading_monomial mo l ≤ leading_monomial mo n)
   have mem_N'_not_mem_f4s_G (n) (hnN' : n ∈ N') : n ∉ f4s.G := by
     intro hnG
     simp [N'] at hnN'
@@ -1402,7 +1402,7 @@ lemma f4s_moni_ipcard_lex_decr {σ K : Type*} [Finite σ] [DecidableEq σ] [Fiel
   have i_pairs_proc_new_disj : Disjoint i_pairs_new f4s.i_pairs_proc :=
     (Finset.subset_sdiff.mp i_pairs_new_spec.2).2
   let ip_to_spair : Fin f4s.size × Fin f4s.size → Finset (MvPolynomial σ K) :=
-    (λ ⟨i, j⟩ =>
+    (fun ⟨i, j⟩ =>
       let s_pair := S_pair mo
         (f4s.G[i]'(by rw [f4s.G_len_eq_size]; exact i.isLt))
         (f4s.G[j]'(by rw [f4s.G_len_eq_size]; exact j.isLt))
@@ -1445,7 +1445,7 @@ lemma f4s_moni_ipcard_lex_decr {σ K : Type*} [Finite σ] [DecidableEq σ] [Fiel
   let L' := symb_proc_L.H
   let ge_L' := gaussian_elim mo L'
   let N := ge_L'.SO
-  let N' := N.filter (λ n => ∀ l ∈ L', ¬leading_monomial mo l ≤ leading_monomial mo n)
+  let N' := N.filter (fun n => ∀ l ∈ L', ¬leading_monomial mo l ≤ leading_monomial mo n)
   have N'_subs_N : N' ⊆ N := by
     unfold N'
     apply Finset.filter_subset
@@ -1512,7 +1512,7 @@ lemma f4s_moni_ipcard_lex_decr {σ K : Type*} [Finite σ] [DecidableEq σ] [Fiel
       constructor
       · unfold lmi lmi' monomial_ideal
         apply Ideal.span_mono
-        apply Set.image_mono -- (λ s => (MvPolynomial.monomial s) 1)
+        apply Set.image_mono -- (fun s => (MvPolynomial.monomial s) 1)
         rw [Finset.coe_subset]
         unfold leading_monomials_fin
         apply Finset.biUnion_subset_biUnion_of_subset_left
@@ -1534,7 +1534,7 @@ lemma f4s_moni_ipcard_lex_decr {σ K : Type*} [Finite σ] [DecidableEq σ] [Fiel
                 exact Or.inr hnN'
               · simp [lm_coe_lm' mo n (ne_of_mem_of_not_mem hnN' zero_not_mem_N'), WithBot.some_eq_coe]
             rw [← Finset.mem_coe] at lm'_n_mem
-            apply Set.mem_image_of_mem (λ s => (MvPolynomial.monomial s) (1 : K)) at lm'_n_mem
+            apply Set.mem_image_of_mem (fun s => (MvPolynomial.monomial s) (1 : K)) at lm'_n_mem
             apply Ideal.subset_span
             exact lm'_n_mem
           · by_contra lm'_n_mem
@@ -1712,8 +1712,8 @@ lemma F4_full_proc {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [Decida
 the refined Buchberger criterion, hence is a Groebner basis of the ideal spanned
 by the original basis set. -/
 theorem F4_groebner {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
-  (mo : MonomialOrder σ) (F : Finset (MvPolynomial σ K)) (hF : 0 ∉ F)
-  : let f4F := F4 mo F hF
+  (mo : MonomialOrder σ) (F : Finset (MvPolynomial σ K)) (hF : 0 ∉ F) :
+    let f4F := F4 mo F hF
     is_groebner mo f4F.G.toFinset (Ideal.span F) := by
   intro f4F
   have ideal_eq := f4F.span_ideal
@@ -1783,3 +1783,5 @@ theorem F4_groebner {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [Decid
     simp [← neg_eq_iff_eq_neg] at spoly_swap
     rw [← spoly_swap, neg_ne_zero] at spoly_ne_0
     exact key spoly_ne_0
+
+#min_imports
