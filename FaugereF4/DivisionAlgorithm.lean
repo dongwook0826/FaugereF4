@@ -33,10 +33,10 @@ structure MvPolyDivStruct
   /-- The lengths of divisor list and quotient list are equal. -/
   FQ_len_eq : F.length = Q.length
   /-- The terms fixed as the remainder. -/
-  r : MvPolynomial σ K -- 관심의 대상에서 벗어난 항들.
+  r : MvPolynomial σ K
   /-- Remaining terms to be determined whether divisible.
   Here, LM(`p`) decreases under `mo`. -/
-  p : MvPolynomial σ K -- 관심의 대상. LM(p) decreases.
+  p : MvPolynomial σ K
   /-- Current quotient-remainder sum representation of `f`. -/
   f_eq_FQ_r : f = ∑ i : Fin (F.length), F[i] * Q[i] + r + p
   /-- The sum representation above is standard,
@@ -189,9 +189,8 @@ noncomputable def mvpoly_division_step {σ K : Type*}
           fun i : Fin F.length => F[i] * mpds.Q[i]'(by rw [← mpds.FQ_len_eq]; exact i.isLt)
         let FQ_map :=
           fun i : Fin F.length => F[i] * Q[i]'(by rw [← FQ_len_eq]; exact i.isLt)
-        have FQ_list_eq
-          : List.ofFn FQ_map
-          = (List.ofFn prevFQ_map).modify di (· + fdi * qi_term) := by
+        have FQ_list_eq :
+          List.ofFn FQ_map = (List.ofFn prevFQ_map).modify di (· + fdi * qi_term) := by
           unfold FQ_map prevFQ_map Q
           apply List.ext_getElem
           · simp
@@ -269,7 +268,7 @@ lemma mvpoly_division_lmp_decr {σ K : Type*}
     subst f
     rw [lm_coe_lm' mo mpds.p p_ne_0] at lmp_le_lmf
     rw [lm_zero_eq_bot mo] at lmp_le_lmf
-    simp at lmp_le_lmf
+    simp only [WithBot.map_coe, WithBot.map_bot, le_bot_iff, WithBot.coe_ne_bot] at lmp_le_lmf
   let lmp := leading_monomial' mo mpds.p p_ne_0
   let lcp := mpds.p.coeff lmp
   have lcp_ne_0 : lcp ≠ 0 := by exact lc_not_zero mo mpds.p p_ne_0
@@ -278,19 +277,20 @@ lemma mvpoly_division_lmp_decr {σ K : Type*}
     Fin.find
       (fun (i : Fin F.length) =>
         leading_monomial' mo F[i] (mem_F_ne_0 F[i] (by simp)) ≤ lmp)
-  simp_all
+  simp_all only [ne_eq, Fin.getElem_fin, gt_iff_lt]
   split
   next odi_eq =>
     have none_div := Fin.find_eq_none_iff.mp odi_eq
-    have lmltp_le_lmp
-      : WithBot.map (⇑mo.toSyn) (leading_monomial mo ltp)
-      ≤ WithBot.map (⇑mo.toSyn) (leading_monomial mo mpds.p) := by
+    have lmltp_le_lmp :
+      WithBot.map (⇑mo.toSyn) (leading_monomial mo ltp) ≤
+      WithBot.map (⇑mo.toSyn) (leading_monomial mo mpds.p) := by
       conv_lhs =>
-        simp [ltp, leading_monomial, max_monomial,
-          MvPolynomial.support_monomial, lcp_ne_0]
-      simp [lm_coe_lm' mo mpds.p p_ne_0]
-      simp [lmp, leading_monomial', max_monomial']
-    simp
+        simp only [leading_monomial, max_monomial, AddEquiv.toEquiv_eq_coe, Equiv.invFun_as_coe,
+          AddEquiv.coe_toEquiv_symm, MvPolynomial.support_monomial, lcp_ne_0, ↓reduceIte,
+          Finset.map_singleton, Equiv.coe_toEmbedding, EquivLike.coe_coe, Finset.max_singleton,
+          WithBot.map_coe, AddEquiv.symm_apply_apply, ltp]
+      simp [lm_coe_lm' mo mpds.p p_ne_0, lmp, leading_monomial', max_monomial']
+    simp only [gt_iff_lt]
     cases em (mpds.p - ltp = 0) with
     | inl p_sub_ltp_eq_0 =>
       subst ltp lcp lmp
@@ -304,9 +304,13 @@ lemma mvpoly_division_lmp_decr {σ K : Type*}
           rw [← lm_smul_eq_lm mo _ (-1 : K) (by simp)]
           exact lmltp_le_lmp
       · push_neg at p_sub_ltp_ne_0
-        have key := Finset.max'_mem (Finset.map mo.toSyn.toEmbedding (mpds.p - ltp).support) (by simp [p_sub_ltp_ne_0])
+        have key :=
+          Finset.max'_mem
+            (Finset.map mo.toSyn.toEmbedding (mpds.p - ltp).support)
+            (by simp [p_sub_ltp_ne_0])
         unfold ltp lcp lmp at p_sub_ltp_ne_0
-        simp [lm_coe_lm' mo _ p_sub_ltp_ne_0, lm_coe_lm' mo mpds.p p_ne_0]
+        simp only [lm_coe_lm' mo _ p_sub_ltp_ne_0, WithBot.map_coe, lm_coe_lm' mo mpds.p p_ne_0,
+          ne_eq, WithBot.coe_inj, EmbeddingLike.apply_eq_iff_eq]
         by_contra HC
         have key' : (mpds.p - ltp).coeff lmp = 0 := by
           unfold ltp lcp
@@ -314,10 +318,11 @@ lemma mvpoly_division_lmp_decr {σ K : Type*}
         rw [← MvPolynomial.notMem_support_iff] at key'
         conv_lhs at HC =>
           rw [leading_monomial', max_monomial']
-          simp only [Equiv.invFun_as_coe, AddEquiv.coe_toEquiv_symm]
-        simp [← AddEquiv.apply_eq_iff_eq mo.toSyn] at HC
+          simp
+        simp only [← AddEquiv.apply_eq_iff_eq mo.toSyn, AddEquiv.apply_symm_apply] at HC
         unfold lmp at key'
-        rw [← Finset.mem_map' mo.toSyn.toEmbedding, Equiv.toEmbedding_apply, AddEquiv.toEquiv_eq_coe] at key'
+        rw [← Finset.mem_map' mo.toSyn.toEmbedding, Equiv.toEmbedding_apply,
+          AddEquiv.toEquiv_eq_coe] at key'
         unfold ltp lcp lmp at key
         simp only [EquivLike.coe_coe, ltp, lcp, lmp] at key'
         rw [← HC] at key'
@@ -330,11 +335,11 @@ lemma mvpoly_division_lmp_decr {σ K : Type*}
     let lcfdi := fdi.coeff lmfdi
     let ltfdi := MvPolynomial.monomial lmfdi lcfdi
     have lmfdi_div_lmp : lmfdi ≤ lmp := by
-      simp [Fin.find_eq_some_iff] at odi_eq
+      simp only [Fin.find_eq_some_iff] at odi_eq
       exact odi_eq.1
     let qi_term := MvPolynomial.monomial (lmp - lmfdi) (lcp / lcfdi)
     have qi_term_c_ne_0 : lcp / lcfdi ≠ 0 := by
-      simp
+      simp only [ne_eq, div_eq_zero_iff, not_or]
       push_neg
       constructor
       · exact lc_not_zero mo mpds.p p_ne_0
@@ -343,7 +348,7 @@ lemma mvpoly_division_lmp_decr {σ K : Type*}
       apply mul_ne_zero
       · exact fdi_ne_0
       · simp only [ne_eq, MvPolynomial.monomial_eq_zero, div_eq_zero_iff, not_or, qi_term,
-        lcfdi, lcp]
+          lcfdi, lcp]
         constructor
         · exact lc_not_zero mo mpds.p p_ne_0
         · exact lc_not_zero mo fdi fdi_ne_0
@@ -353,11 +358,11 @@ lemma mvpoly_division_lmp_decr {σ K : Type*}
       rw [add_comm]
       subst lmfdi
       exact monomial_sub_add _ _ lmfdi_div_lmp
-    simp
+    simp only [gt_iff_lt]
     cases em (mpds.p - fdi * qi_term = 0) with
     | inl p_sub_eq_0 =>
       subst fdi qi_term lcp lcfdi lmp lmfdi
-      simp at p_sub_eq_0
+      simp only [Fin.getElem_fin] at p_sub_eq_0
       simp [p_sub_eq_0, lm_zero_eq_bot, lm_coe_lm' mo mpds.p p_ne_0]
     | inr p_sub_ne_0 =>
       apply lt_of_le_of_ne
@@ -370,27 +375,29 @@ lemma mvpoly_division_lmp_decr {σ K : Type*}
           rw [← WithBot.coe_eq_coe, ← lm_coe_lm' mo, ← lm_coe_lm' mo] at lmfqi_eq_lmp
           rw [← lmfqi_eq_lmp]
           rfl
-      · simp [fdi, qi_term, lcp, lcfdi, lmp, lmfdi] at p_sub_ne_0
-        simp [lm_coe_lm' mo _ p_sub_ne_0, lm_coe_lm' mo mpds.p p_ne_0]
+      · simp only [Fin.getElem_fin, fdi, qi_term, lmp, lmfdi, lcp, lcfdi] at p_sub_ne_0
+        simp only [lm_coe_lm' mo _ p_sub_ne_0, WithBot.map_coe, lm_coe_lm' mo mpds.p p_ne_0, ne_eq,
+          WithBot.coe_inj, EmbeddingLike.apply_eq_iff_eq]
         by_contra HC
         have key :=
           Finset.max'_mem
             (Finset.map mo.toSyn.toEmbedding (mpds.p - fdi * qi_term).support)
             (by simp [p_sub_ne_0, fdi, qi_term, lcp, lcfdi, lmp, lmfdi])
         have key' : (mpds.p - fdi * qi_term).coeff lmp = 0 := by
-          simp
+          simp only [MvPolynomial.coeff_sub]
           apply sub_eq_zero_of_eq
           conv_rhs => rw [← monomial_sub_add lmfdi lmp lmfdi_div_lmp, add_comm]
-          simp [qi_term, lcfdi, lcp]
+          simp only [MvPolynomial.coeff_mul_monomial, qi_term, lcp, lcfdi]
           rw [div_eq_mul_inv, ← mul_assoc, mul_comm lcfdi lcp, mul_assoc]
           simp [lcp, lcfdi, @mul_inv_cancel₀ K _ lcfdi (by exact lc_not_zero mo fdi fdi_ne_0)]
         rw [← MvPolynomial.notMem_support_iff] at key'
         conv_lhs at HC =>
           rw [leading_monomial', max_monomial']
-          simp only [Equiv.invFun_as_coe, AddEquiv.coe_toEquiv_symm]
-        simp [← AddEquiv.apply_eq_iff_eq mo.toSyn] at HC
+          simp
+        simp only [← AddEquiv.apply_eq_iff_eq mo.toSyn, AddEquiv.apply_symm_apply] at HC
         unfold lmp at key'
-        rw [← Finset.mem_map' mo.toSyn.toEmbedding, Equiv.toEmbedding_apply, AddEquiv.toEquiv_eq_coe] at key'
+        rw [← Finset.mem_map' mo.toSyn.toEmbedding, Equiv.toEmbedding_apply,
+          AddEquiv.toEquiv_eq_coe] at key'
         simp only [EquivLike.coe_coe] at key'
         rw [← HC] at key'
         exact key' key
@@ -422,10 +429,8 @@ noncomputable def mvpoly_division_init {σ K : Type*}
     r := 0
     p := f
     f_eq_FQ_r := by simp
-    lm_summand_le_lmf := by
-      simp [lm_zero_eq_bot]
-    lmr_le_lmf := by
-      simp [lm_zero_eq_bot]
+    lm_summand_le_lmf := by simp [lm_zero_eq_bot]
+    lmr_le_lmf := by simp [lm_zero_eq_bot]
     lmp_le_lmf := by rfl
     r_not_divisible := by simp
   }
