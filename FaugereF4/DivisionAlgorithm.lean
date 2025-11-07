@@ -1,4 +1,7 @@
+import Mathlib
 import FaugereF4.MonomialIdeal
+
+#min_imports
 
 /-
 theorem MonomialOrder.div_set {σ : Type u_1} {m : MonomialOrder σ}
@@ -21,12 +24,14 @@ The struct must hold the dividend f and divisors F = [f0, f1, ..., f(n-1)]
 (4) ∀ i, lm(fi * qi) ≤ lm(f)
 -/
 
+-- universe u v w
+
 instance withbot_mo_syn_wf {σ : Type*} (mo : MonomialOrder σ) :
     WellFoundedRelation (WithBot mo.syn) :=
   WellFoundedLT.toWellFoundedRelation
 
 structure MvPolyDivStruct
-  (σ K : Type*) [DecidableEq σ] [Field K] (mo : MonomialOrder σ)
+  (σ K : Type*) [DecidableEq σ] [Field K] [DecidableEq K] (mo : MonomialOrder σ)
   (f : MvPolynomial σ K) (F : List (MvPolynomial σ K)) (hF : 0 ∉ F) (F_Nodup : F.Nodup) where
   /-- list of quotient polynomials until then -/
   Q : List (MvPolynomial σ K)
@@ -57,8 +62,7 @@ structure MvPolyDivStruct
     ∀ μ ∈ r.support, ¬leading_monomial' mo fi (ne_of_mem_of_not_mem hfi hF) ≤ μ
 
 noncomputable def mvpoly_division_step {σ K : Type*}
-  [DecidableEq σ] [Field K] [DecidableEq K]
-  (mo : MonomialOrder σ)
+  [DecidableEq σ] [Field K] [DecidableEq K] (mo : MonomialOrder σ)
   (f : MvPolynomial σ K) (F : List (MvPolynomial σ K)) (hF : 0 ∉ F) (F_Nodup : F.Nodup)
   (mpds : MvPolyDivStruct σ K mo f F hF F_Nodup)
   (p_ne_0 : mpds.p ≠ 0) : MvPolyDivStruct σ K mo f F hF F_Nodup :=
@@ -163,7 +167,7 @@ noncomputable def mvpoly_division_step {σ K : Type*}
         · exact lc_not_zero mo mpds.p p_ne_0
         · exact lc_not_zero mo fdi fdi_ne_0
     have lmfqi_eq_lmp :
-      leading_monomial' mo (F[↑di] * qi_term) fdi_qiterm_mul_ne_0 = lmp := by
+      leading_monomial' mo (fdi * qi_term) fdi_qiterm_mul_ne_0 = lmp := by
       rw [lm'_monmul_commute mo F[di] fdi_ne_0 (lmp - lmfdi) (lcp / lcfdi) qi_term_c_ne_0]
       rw [add_comm]
       subst lmfdi

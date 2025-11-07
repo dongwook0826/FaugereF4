@@ -79,20 +79,20 @@ theorem mem_ideal_iff_gb_remainder_zero {σ K : Type*}
           apply Ideal.sum_mem
           intro ⟨i, hi⟩
           simp only [Finset.mem_univ, forall_const]
-          have LGi_mem_G : {LG[i]} ⊆ G.toSet := by simp [G_eq_LG]
+          have LGi_mem_G : {LG[i]} ⊆ SetLike.coe G := by simp [G_eq_LG]
           apply Ideal.span_mono LGi_mem_G
           simp [Ideal.mem_span_singleton]
       have mpds_on_lmr_mem_I
         (LG : List (MvPolynomial σ K)) (G_eq_LG : G = LG.toFinset) (LG_Nodup : LG.Nodup) :
           let mpds := mpds_on LG G_eq_LG LG_Nodup
-          ∃ μ ∈ (leading_monomials_fin mo G).toSet,
+          ∃ μ ∈ SetLike.coe (leading_monomials_fin mo G),
             μ ≤ leading_monomial' mo mpds.r (mpds_on_r_ne_0 LG G_eq_LG LG_Nodup) := by
         intro mpds
         rw [← @mon_mem_moni_iff σ K, ← initII_eq_initIG]
         unfold monomial_ideal
         apply Ideal.subset_span
         simp only [leading_monomials, Submodule.carrier_eq_coe, Set.sUnion_image, SetLike.mem_coe,
-          Set.mem_image, Set.mem_iUnion, Finset.mem_coe, Option.mem_toFinset, Option.mem_def,
+          Set.mem_image, Set.mem_iUnion, Option.mem_toFinset, Option.mem_def,
           exists_prop, ne_eq, one_ne_zero, not_false_eq_true, MvPolynomial.monomial_left_inj,
           exists_eq_right]
         exists mpds.r, mpds_on_r_mem_I LG G_eq_LG LG_Nodup
@@ -137,7 +137,7 @@ theorem mem_ideal_iff_gb_remainder_zero {σ K : Type*}
     apply Ideal.sum_mem
     intro ⟨i, hi⟩
     simp only [Finset.mem_univ, forall_const]
-    have LGi_mem_G : {LG[i]} ⊆ G.toSet := by simp [G_eq_LG]
+    have LGi_mem_G : {LG[i]} ⊆ SetLike.coe G := by simp [G_eq_LG]
     apply Ideal.span_mono LGi_mem_G
     simp [Ideal.mem_span_singleton]
 
@@ -157,7 +157,7 @@ lemma groebner_iff_ideal_leadterm_mem_initI {σ K : Type*}
     rw [← initI_eq]
     rw [term_mem_moni_iff lmf _ lcf (lc_not_zero mo f f_ne_0)]
     simp only [leading_monomials, Submodule.carrier_eq_coe, Set.sUnion_image, SetLike.mem_coe,
-      Set.mem_iUnion, Finset.mem_coe, Option.mem_toFinset, Option.mem_def, exists_prop]
+      Set.mem_iUnion, Option.mem_toFinset, Option.mem_def, exists_prop]
     exists lmf
     constructor
     · exists f
@@ -175,7 +175,7 @@ lemma groebner_iff_ideal_leadterm_mem_initI {σ K : Type*}
         intro ν ν_supp_f
         rcases f_mem_initII ν ν_supp_f with ⟨μ, μ_mem_lmI, μ_div_ν⟩
         simp only [leading_monomials, Submodule.carrier_eq_coe, Set.sUnion_image, SetLike.mem_coe,
-          Set.mem_iUnion, Finset.mem_coe, Option.mem_toFinset, Option.mem_def,
+          Set.mem_iUnion, Option.mem_toFinset, Option.mem_def,
           exists_prop] at μ_mem_lmI
         rcases μ_mem_lmI with ⟨g, g_mem_I, lmg_eq_μ⟩
         have g_ne_0 : g ≠ 0 := by
@@ -205,7 +205,7 @@ lemma groebner_iff_ideal_leadterm_mem_initI {σ K : Type*}
           Option.mem_toFinset, Option.mem_def, exists_prop] at μ_mem_lmG
         rcases μ_mem_lmG with ⟨g, g_mem_G, lmg_eq_μ⟩
         simp only [leading_monomials, Submodule.carrier_eq_coe, Set.sUnion_image, SetLike.mem_coe,
-          Set.mem_iUnion, Finset.mem_coe, Option.mem_toFinset, Option.mem_def, exists_prop]
+          Set.mem_iUnion, Option.mem_toFinset, Option.mem_def, exists_prop]
         exists g
         exact ⟨by apply Ideal.subset_span g_mem_G, lmg_eq_μ⟩
 

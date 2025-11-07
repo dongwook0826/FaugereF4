@@ -4,6 +4,9 @@ import Mathlib.Algebra.Order.Ring.Star
 import Mathlib.Data.List.ToFinsupp
 import Mathlib.RingTheory.HopkinsLevitzki
 
+-- set_option trace.profiler true
+-- #where
+
 /-!
 # Faugere F4 algorithm
 
@@ -1120,7 +1123,8 @@ def f4s_lex_prod {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [Decidabl
   (monomial_ideal K (leading_monomials_fin mo f4s.G.toFinset),
     (f4s.i_pairs \ f4s.i_pairs_proc).card)
 
-set_option maxHeartbeats 400000 in
+
+set_option maxHeartbeats 800000 in
 -- the definition requires more than 200000 heartbeats
 /-- One step of F4. The loop continues as long as `f4s.i_pairs ≠ f4s.i_pairs_proc`,
 i.e. there still exists a pair of polynomials whose S-pair isn't processed yet. -/
@@ -1419,7 +1423,7 @@ noncomputable def F4_step {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] 
               simp only [S_poly, Fin.getElem_fin, ← i_eq_i', ← j_eq_j', ne_eq]
               simp only [spoly_ij_eq, ne_eq] at spoly_ij_ne_0
               exact spoly_ij_ne_0)
-        simp at key
+        simp only [Fin.getElem_fin] at key
         have gi_eq_gi' : f4s.G[i.val] = f4s.G[i'.val] := by simp_all
         have gj_eq_gj' : f4s.G[j.val] = f4s.G[j'.val] := by simp_all
         have spoly_eq_spoly' :
@@ -1508,19 +1512,28 @@ lemma f4s_moni_ipcard_lex_decr {σ K : Type*} [Finite σ] [DecidableEq σ] [Fiel
       { s_pair.fst, s_pair.snd })
   let L := Finset.biUnion i_pairs_new ip_to_spair
   have zero_not_mem_L : 0 ∉ L := by
-    simp [L, Finset.mem_biUnion, ip_to_spair, S_pair]
+    simp only [S_pair, Fin.getElem_fin, Finset.mem_biUnion, Finset.mem_insert, zero_eq_mul,
+      MvPolynomial.monomial_eq_zero, inv_eq_zero, Finset.mem_singleton, Prod.exists, not_exists,
+      not_and, not_or, ne_eq, L, ip_to_spair]
     intro i j ij_mem_new
-    have gi_ne_0 : f4s.G[i.val]'(by rw [f4s.G_len_eq_size]; exact i.isLt) ≠ 0 := f4s.zero_not_mem_G' i.val _
-    have gj_ne_0 : f4s.G[j.val]'(by rw [f4s.G_len_eq_size]; exact j.isLt) ≠ 0 := f4s.zero_not_mem_G' j.val _
+    have gi_ne_0 :
+      f4s.G[i.val]'(by rw [f4s.G_len_eq_size]; exact i.isLt) ≠ 0 :=
+      f4s.zero_not_mem_G' i.val _
+    have gj_ne_0 :
+      f4s.G[j.val]'(by rw [f4s.G_len_eq_size]; exact j.isLt) ≠ 0 :=
+      f4s.zero_not_mem_G' j.val _
     constructor
     · exact ⟨gi_ne_0, lc_not_zero mo _ gi_ne_0⟩
     · exact ⟨gj_ne_0, lc_not_zero mo _ gj_ne_0⟩
-  have L_sub_monmul_G : ↑L ⊆ {mg | ∃ g ∈ f4s.G.toFinset, ∃ α : σ →₀ ℕ, ∃ c : K, mg = g * MvPolynomial.monomial α c} := by
+  have L_sub_monmul_G :
+    ↑L ⊆
+      {mg | ∃ g ∈ f4s.G.toFinset, ∃ α : σ →₀ ℕ, ∃ c : K, mg = g * MvPolynomial.monomial α c} := by
     intro p p_mem_L
-    simp
-    simp [L] at p_mem_L
+    simp only [List.mem_toFinset, Set.mem_setOf_eq]
+    simp only [Finset.coe_biUnion, Finset.mem_coe, Set.mem_iUnion, exists_prop, Prod.exists,
+      L] at p_mem_L
     let ⟨i, j, hij, hpij⟩ := p_mem_L
-    simp [ip_to_spair] at hpij
+    simp only [Fin.getElem_fin, Finset.mem_insert, Finset.mem_singleton, ip_to_spair] at hpij
     let fi := f4s.G[i]'(by rw [f4s.G_len_eq_size]; exact i.isLt)
     let fj := f4s.G[j]'(by rw [f4s.G_len_eq_size]; exact j.isLt)
     have fi_mem_G : fi ∈ f4s.G := by simp [fi]
@@ -1546,7 +1559,9 @@ lemma f4s_moni_ipcard_lex_decr {σ K : Type*} [Finite σ] [DecidableEq σ] [Fiel
   have N'_subs_N : N' ⊆ N := by
     unfold N'
     apply Finset.filter_subset
-  let i_pairs_ext : (Fin f4s.size × Fin f4s.size) ↪ (Fin (f4s.size + N'.card) × Fin (f4s.size + N'.card)) := {
+  let i_pairs_ext :
+    (Fin f4s.size × Fin f4s.size) ↪ (Fin (f4s.size + N'.card) × Fin (f4s.size + N'.card)) :=
+  {
     toFun (ip) := (Fin.castAdd N'.card ip.fst, Fin.castAdd N'.card ip.snd)
     inj' := by unfold Function.Injective; simp
   }
@@ -1555,18 +1570,21 @@ lemma f4s_moni_ipcard_lex_decr {σ K : Type*} [Finite σ] [DecidableEq σ] [Fiel
   let i_pairs := pair_set (@Finset.univ (Fin (f4s.size + N'.card)) _)
   let i_pairs_proc := (f4s.i_pairs_proc ∪ i_pairs_new).map i_pairs_ext
   have i_pairs_proc_subs : i_pairs_proc ⊆ i_pairs := by
-    simp [i_pairs, i_pairs_proc, pair_set, Finset.map_union, Finset.union_subset_iff]
+    simp only [Finset.map_union, pair_set, Finset.univ_product_univ, Finset.union_subset_iff,
+      i_pairs_proc, i_pairs]
     constructor
     · intro ⟨i', j'⟩
-      simp [i_pairs_ext]
+      simp only [Finset.mem_map, Function.Embedding.coeFn_mk, Prod.mk.injEq, Prod.exists,
+        Finset.mem_filter, Finset.mem_univ, true_and, forall_exists_index, and_imp, i_pairs_ext]
       intro i j hij hii' hjj'
-      simp [← hii', ← hjj']
+      simp only [← hii', ← hjj']
       apply f4s.i_pairs_proc_subs at hij
       exact (f4s.i_pairs_lt (i, j)).mp hij
     · intro ⟨i', j'⟩
-      simp [i_pairs_ext]
+      simp only [Finset.mem_map, Function.Embedding.coeFn_mk, Prod.mk.injEq, Prod.exists,
+        Finset.mem_filter, Finset.mem_univ, true_and, forall_exists_index, and_imp, i_pairs_ext]
       intro i j hij hii' hjj'
-      simp [← hii', ← hjj']
+      simp only [← hii', ← hjj']
       apply i_pairs_new_spec.2 at hij
       apply Finset.sdiff_subset at hij
       exact (f4s.i_pairs_lt (i, j)).mp hij
@@ -1574,7 +1592,7 @@ lemma f4s_moni_ipcard_lex_decr {σ K : Type*} [Finite σ] [DecidableEq σ] [Fiel
     have : (@Finset.univ (Fin (f4s.size + N'.card)) _).card = size := by simp [size]
     rw [pair_set_card (@Finset.univ (Fin (f4s.size + N'.card)) _), this]
   -- main proof
-  simp
+  simp only [gt_iff_lt]
   let lmi : Ideal (MvPolynomial σ K) := monomial_ideal K (leading_monomials_fin mo f4s.G.toFinset)
   let lmi' : Ideal (MvPolynomial σ K) := monomial_ideal K (leading_monomials_fin mo G.toFinset)
   have f4s_moni_ipcard_lex_decr' :
@@ -1582,25 +1600,25 @@ lemma f4s_moni_ipcard_lex_decr {σ K : Type*} [Finite σ] [DecidableEq σ] [Fiel
     lmi' = lmi ∧ (i_pairs \ i_pairs_proc).card < (f4s.i_pairs \ f4s.i_pairs_proc).card := by
     cases (em (N' = ∅)) with
     | inl N'_empty =>
-      have N'_list_empty : N'.toList = [] := by simp; exact N'_empty
+      have N'_list_empty : N'.toList = [] := by rw [Finset.toList_eq_nil]; exact N'_empty
       have N'_card_0 : N'.card = 0 := by rw [N'_empty]; simp
       apply Or.inr
       constructor
       · unfold lmi' lmi G
         simp [N'_list_empty]
-      · rw [Finset.card_sdiff i_pairs_proc_subs, Finset.card_sdiff f4s.i_pairs_proc_subs]
+      · rw [Finset.card_sdiff_of_subset i_pairs_proc_subs,
+          Finset.card_sdiff_of_subset f4s.i_pairs_proc_subs]
         have hc1 : i_pairs.card = f4s.i_pairs.card := by
           have : size = f4s.size := by simp [size, N'_card_0]
           rw [i_pairs_card, f4s.i_pairs_card, this]
-        simp [hc1, i_pairs_proc]
+        simp only [hc1, gt_iff_lt]
         apply Nat.sub_lt_sub_left
         · apply Finset.card_lt_card
           rw [ssubset_iff_subset_ne]
-          constructor
-          · exact f4s.i_pairs_proc_subs
-          · push_neg at full_proc
-            exact full_proc.symm
-        · rw [Finset.card_union_of_disjoint i_pairs_proc_new_disj.symm]
+          rw [← ne_eq] at full_proc
+          exact ⟨f4s.i_pairs_proc_subs, full_proc.symm⟩
+        · rw [Finset.card_map i_pairs_ext,
+            Finset.card_union_of_disjoint i_pairs_proc_new_disj.symm]
           apply lt_add_of_pos_right
           exact Finset.Nonempty.card_pos (Finset.nonempty_of_ne_empty i_pairs_new_spec.1)
     | inr N'_nonempty =>
@@ -1613,52 +1631,59 @@ lemma f4s_moni_ipcard_lex_decr {σ K : Type*} [Finite σ] [DecidableEq σ] [Fiel
         rw [Finset.coe_subset]
         unfold leading_monomials_fin
         apply Finset.biUnion_subset_biUnion_of_subset_left
-        simp [G]
+        simp only [List.toFinset_append, Finset.toList_toFinset, Finset.subset_union_left, G]
       · have zero_not_mem_N' : 0 ∉ N' := Finset.notMem_mono N'_subs_N ge_L'.zero_not_mem_SO
-        have lm_N'_mem_not_mem (n) (hnN' : n ∈ N')
-          : let lmn := leading_monomial' mo n (ne_of_mem_of_not_mem hnN' zero_not_mem_N')
-            let xlmn := MvPolynomial.monomial lmn (1 : K)
-            xlmn ∈ lmi' ∧ xlmn ∉ lmi := by
+        have lm_N'_mem_not_mem (n) (hnN' : n ∈ N') :
+          let lmn := leading_monomial' mo n (ne_of_mem_of_not_mem hnN' zero_not_mem_N')
+          let xlmn := MvPolynomial.monomial lmn (1 : K)
+          xlmn ∈ lmi' ∧ xlmn ∉ lmi := by
           constructor
           · unfold lmi' monomial_ideal
-            have lm'_n_mem
-              : leading_monomial' mo n (ne_of_mem_of_not_mem hnN' zero_not_mem_N')
-              ∈ leading_monomials_fin mo G.toFinset := by
-              simp [leading_monomials_fin]
+            have lm'_n_mem :
+              leading_monomial' mo n (ne_of_mem_of_not_mem hnN' zero_not_mem_N') ∈
+                leading_monomials_fin mo G.toFinset := by
+              simp only [leading_monomials_fin, Finset.mem_biUnion, List.mem_toFinset,
+                Option.mem_toFinset, Option.mem_def]
               exists n
               constructor
-              · simp [G]
+              · simp only [List.mem_append, Finset.mem_toList, G]
                 exact Or.inr hnN'
-              · simp [lm_coe_lm' mo n (ne_of_mem_of_not_mem hnN' zero_not_mem_N'), WithBot.some_eq_coe]
+              · simp [lm_coe_lm' mo n (ne_of_mem_of_not_mem hnN' zero_not_mem_N'),
+                  WithBot.some_eq_coe]
             rw [← Finset.mem_coe] at lm'_n_mem
             apply Set.mem_image_of_mem (fun s => (MvPolynomial.monomial s) (1 : K)) at lm'_n_mem
             apply Ideal.subset_span
             exact lm'_n_mem
           · by_contra lm'_n_mem
-            simp [
-              lmi,
-              mon_mem_moni_iff (leading_monomial' mo n (ne_of_mem_of_not_mem hnN' zero_not_mem_N')) (leading_monomials_fin mo f4s.G.toFinset)
-            ] at lm'_n_mem
+            simp only [
+              mon_mem_moni_iff
+                (leading_monomial' mo n (ne_of_mem_of_not_mem hnN' zero_not_mem_N'))
+                (leading_monomials_fin mo f4s.G.toFinset),
+              Finset.mem_coe, lmi] at lm'_n_mem
             let ⟨μ, hμG, hμn⟩ := lm'_n_mem
-            simp [leading_monomials_fin] at hμG
+            simp only [leading_monomials_fin, Finset.mem_biUnion, List.mem_toFinset,
+              Option.mem_toFinset, Option.mem_def] at hμG
             let ⟨g, hgG, hgμ⟩ := hμG
             have g_ne_0 : g ≠ 0 := ne_of_mem_of_not_mem hgG f4s.zero_not_mem_G
             have μ_eq_lm_g : μ = leading_monomial' mo g g_ne_0 := by
-              simp [lm_coe_lm' mo g g_ne_0, WithBot.some_eq_coe] at hgμ
+              simp only [lm_coe_lm' mo g g_ne_0, WithBot.some_eq_coe] at hgμ
               rw [WithBot.coe_inj] at hgμ
               exact hgμ.symm
             have n_ne_0 : n ≠ 0 := ne_of_mem_of_not_mem hnN' zero_not_mem_N'
             have hnN : n ∈ N := N'_subs_N hnN'
             let ν := leading_monomial' mo n n_ne_0
             have ν_done : ν ∈ symb_proc_L.done_mons := by
-              rw [symbolic_preprocess_done_mons mo
+              rw [
+                symbolic_preprocess_done_mons mo
                   f4s.G.toFinset (by rw [List.mem_toFinset]; exact f4s.zero_not_mem_G)
                   L zero_not_mem_L L_sub_monmul_G,
-                  ← ge_L'.monset_fixed, gaussian_elim_SI_empty mo L']
-              simp
+                ← ge_L'.monset_fixed,
+                gaussian_elim_SI_empty mo L'
+              ]
+              simp only [Finset.empty_union]
               unfold N at hnN
               rw [← Finset.insert_erase hnN, Finset.insert_eq, monomial_set_union_distrib]
-              simp
+              simp only [Finset.mem_union]
               apply Or.inl
               rw [singleton_monset_eq_support]
               exact lm'_mem mo n n_ne_0
@@ -1667,30 +1692,36 @@ lemma f4s_moni_ipcard_lex_decr {σ K : Type*} [Finite σ] [DecidableEq σ] [Fiel
             have key' : leading_monomial mo g ≤ ν := by
               unfold ν
               rw [← lm_coe_lm' mo n n_ne_0]
-              rw [μ_eq_lm_g, ← WithBot.coe_le_coe,
-                  ← lm_coe_lm' mo g g_ne_0, ← lm_coe_lm' mo n n_ne_0] at hμn
+              rw [
+                μ_eq_lm_g, ← WithBot.coe_le_coe,
+                ← lm_coe_lm' mo g g_ne_0, ← lm_coe_lm' mo n n_ne_0
+              ] at hμn
               exact hμn
             let key := key ⟨g, List.mem_toFinset.mpr hgG, key'⟩
             rcases key with ⟨f, hfG, π, πcf_mul_mem, πcf_mul_lm⟩
-            simp [N', L'] at hnN'
+            simp only [Finset.mem_filter, N', L'] at hnN'
             let hnL' := hnN'.2 _ πcf_mul_mem
             rw [πcf_mul_lm] at hnL'
             unfold ν at hnL'
             rw [← lm_coe_lm' mo n n_ne_0] at hnL'
             exact hnL' le_rfl
-        let n := Classical.choose (Finset.Nonempty.exists_mem (Finset.nonempty_of_ne_empty N'_nonempty))
-        have hn : n ∈ N' := Classical.choose_spec (Finset.Nonempty.exists_mem (Finset.nonempty_of_ne_empty N'_nonempty))
+        let n :=
+          Classical.choose
+            (Finset.Nonempty.exists_mem (Finset.nonempty_of_ne_empty N'_nonempty))
+        have hn : n ∈ N' :=
+          Classical.choose_spec
+            (Finset.Nonempty.exists_mem (Finset.nonempty_of_ne_empty N'_nonempty))
         let ⟨key_1, key_2⟩ := lm_N'_mem_not_mem n hn
         exact (ne_of_mem_of_not_mem' key_1 key_2).symm
   unfold f4s_lex_prod
   rw [Prod.lex_def]
-  simp
+  simp only
   have G_eq : (F4_step mo I f4s full_proc).G = G := by
     unfold F4_step
     simp [G, N', N, L', ge_L', symb_proc_L, L, i_pairs_new, ip_to_spair]
-  have card_eq
-    : ((F4_step mo I f4s full_proc).i_pairs \ (F4_step mo I f4s full_proc).i_pairs_proc).card
-    = (i_pairs \ i_pairs_proc).card := by
+  have card_eq :
+    ((F4_step mo I f4s full_proc).i_pairs \ (F4_step mo I f4s full_proc).i_pairs_proc).card =
+    (i_pairs \ i_pairs_proc).card := by
     unfold F4_step i_pairs i_pairs_proc i_pairs_ext
     simp [N', N, L', ge_L', symb_proc_L, L, i_pairs_new, ip_to_spair]
   rw [G_eq, card_eq]
@@ -1708,7 +1739,7 @@ termination_by
    Finset.card (f4s.i_pairs \ f4s.i_pairs_proc))
 decreasing_by
   unfold WellFoundedRelation.rel imv_nat_wf IsWellFounded.toWellFoundedRelation
-  simp
+  simp only [gt_iff_lt]
   apply f4s_moni_ipcard_lex_decr mo I f4s full_proc
 
 /-- Initial `F4Struct` object to iterate through `F4_rec`. -/

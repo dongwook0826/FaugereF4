@@ -176,7 +176,7 @@ lemma elim_card_le {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
 lemma elim_subset_span {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (S : Finset (MvPolynomial σ K))
   (p : MvPolynomial σ K) (hp : p ≠ 0) :
-    (eliminate_lead_term mo S p hp).toSet ⊆
+    SetLike.coe (eliminate_lead_term mo S p hp) ⊆
     (@Submodule.span K (MvPolynomial σ K) _ _ _ ({p} ∪ S)) := by
   intro f hf
   simp only [eliminate_lead_term, Finset.coe_image, Set.mem_image, Finset.mem_coe] at hf
@@ -197,7 +197,7 @@ lemma elim_subset_span {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
 lemma subset_span_elim {σ K : Type*} [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (S : Finset (MvPolynomial σ K))
   (p : MvPolynomial σ K) (hp : p ≠ 0) :
-    S.toSet ⊆
+    SetLike.coe S ⊆
     (@Submodule.span K (MvPolynomial σ K) _ _ _ ({p} ∪ eliminate_lead_term mo S p hp)) := by
   intro g hg
   let ec := (g.coeff (leading_monomial' mo p hp)) * (p.coeff (leading_monomial' mo p hp))⁻¹
@@ -412,9 +412,9 @@ noncomputable def gaussian_elim_step {σ K : Type*} [DecidableEq σ] [Field K] [
       apply Submodule.span_eq_span
       · apply Set.union_subset
         · unfold SI
-          have cont_0 : (SI0.erase 0).toSet ⊆ SI0.toSet := by simp
+          have cont_0 : SetLike.coe (SI0.erase 0) ⊆ SetLike.coe SI0 := by simp
           have cont_1 :
-            SI0.toSet ⊆ @Submodule.span K (MvPolynomial σ K) _ _ _ ges.SI := by
+            SetLike.coe SI0 ⊆ @Submodule.span K (MvPolynomial σ K) _ _ _ ges.SI := by
             have : ges.SI = {pivot} ∪ ges.SI.erase pivot := by
               rw [← Finset.insert_eq]
               apply Eq.symm
@@ -422,8 +422,8 @@ noncomputable def gaussian_elim_step {σ K : Type*} [DecidableEq σ] [Field K] [
             rw [this]
             unfold SI0
             have :
-              ({pivot} ∪ ges.SI.erase pivot).toSet =
-              {pivot} ∪ (ges.SI.erase pivot).toSet := by simp
+              SetLike.coe ({pivot} ∪ ges.SI.erase pivot) =
+              {pivot} ∪ SetLike.coe (ges.SI.erase pivot) := by simp
             rw [this]
             apply elim_subset_span mo (ges.SI.erase pivot) pivot pivot_spec.choice_not_zero
           have cont_2 :
@@ -436,14 +436,14 @@ noncomputable def gaussian_elim_step {σ K : Type*} [DecidableEq σ] [Field K] [
           rw [Finset.coe_union, Set.union_subset_iff]
           simp only [Finset.coe_singleton, Set.singleton_subset_iff, SetLike.mem_coe]
           constructor
-          · have cont_0 : {pivot} ∪ ges.SO.toSet ⊆ ges.SI ∪ ges.SO := by
+          · have cont_0 : {pivot} ∪ SetLike.coe ges.SO ⊆ ges.SI ∪ ges.SO := by
               apply Set.union_subset_union (by simp; exact pivot_spec.choice_mem) (by simp)
             have cont_1 :
-              (eliminate_lead_term mo ges.SO pivot pivot_spec.choice_not_zero).toSet ⊆
-              Submodule.span K ({pivot} ∪ ges.SO.toSet) := by
+              SetLike.coe (eliminate_lead_term mo ges.SO pivot pivot_spec.choice_not_zero) ⊆
+              Submodule.span K ({pivot} ∪ SetLike.coe ges.SO) := by
               apply elim_subset_span
             have cont_2 :
-              @Submodule.span K (MvPolynomial σ K) _ _ _ ({pivot} ∪ ges.SO.toSet) ≤
+              @Submodule.span K (MvPolynomial σ K) _ _ _ ({pivot} ∪ SetLike.coe ges.SO) ≤
               Submodule.span K (↑ges.SI ∪ ↑ges.SO) := by
               apply Submodule.span_mono
               exact cont_0
@@ -478,7 +478,7 @@ noncomputable def gaussian_elim_step {σ K : Type*} [DecidableEq σ] [Field K] [
             Submodule.span K (SI ∪ SO) := by
             unfold SI
             rcases em (0 ∈ SI0) with h0 | h0
-            · have : (SI0.erase 0).toSet ∪ {0} = SI0.toSet := by
+            · have : SetLike.coe (SI0.erase 0) ∪ {0} = SetLike.coe SI0 := by
                 simp only [Finset.coe_erase, Set.union_singleton, Set.insert_diff_singleton,
                   Set.insert_eq_self, Finset.mem_coe]
                 exact h0
@@ -488,7 +488,7 @@ noncomputable def gaussian_elim_step {σ K : Type*} [DecidableEq σ] [Field K] [
               rw [h0]
           rw [← cont_2]
           calc
-            (ges.SI.erase pivot).toSet ⊆
+            SetLike.coe (ges.SI.erase pivot) ⊆
             @Submodule.span K (MvPolynomial σ K) _ _ _ ({pivot_1} ∪ SI0) := by
               unfold pivot_1 SI0
               exact cont_0
