@@ -5,12 +5,18 @@ defaultTargets = ["FaugereF4"]
 
 [leanOptions]
 pp.unicode.fun = true # pretty-prints `fun a ↦ b`
-autoImplicit = false
+relaxedAutoImplicit = false
 weak.linter.mathlibStandardSet = true
+maxSynthPendingDepth = 3
 
 [[require]]
 name = "mathlib"
-scope = "leanprover-community"
+### if using git repo, use below
+#scope = "leanprover-community"
+#rev = "v4.27.0-rc1"
+### if using local dir, use below
+path = "../.modules/mathlib4"
+version = "v4.27.0-rc1"
 
 [[require]]
 name = "checkdecls"
