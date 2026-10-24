@@ -15,7 +15,7 @@ name = "mathlib"
 #scope = "leanprover-community"
 #rev = "v4.27.0-rc1"
 ### if using local dir, use below
-path = "../.modules/mathlib4"
+path = "../.modules/mathlib4-v4.27.0-rc1"
 version = "v4.27.0-rc1"
 
 [[require]]

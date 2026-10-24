@@ -4,9 +4,6 @@ import Mathlib.Algebra.Order.Ring.Star
 import Mathlib.Data.List.ToFinsupp
 import Mathlib.RingTheory.HopkinsLevitzki
 
--- set_option trace.profiler true
--- #where
-
 /-!
 # Faugere F4 algorithm
 
@@ -1840,6 +1837,7 @@ noncomputable def F4_init {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] 
     F4Struct mo (Ideal.span F : Ideal (MvPolynomial σ K)) :=
   let init_i_pairs := pair_set (@Finset.univ (Fin F.card) _)
   let I : Ideal (MvPolynomial σ K) := Ideal.span F
+  /-
   have supp_G_le_size : F.toList.toFinsupp.support = Finset.range F.toList.length := by
     unfold List.toFinsupp Finset.range
     ext x
@@ -1856,6 +1854,7 @@ noncomputable def F4_init {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] 
         rw [← Finset.mem_toList]
         simp only [List.getElem_mem]
       exact ne_of_mem_of_not_mem this hF
+  -/
   {
     size := F.card
     G := F.toList
@@ -1877,7 +1876,7 @@ noncomputable def F4_init {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] 
     i_pairs_lt := by
       intro ⟨i, j⟩
       unfold init_i_pairs pair_set
-      simp_all only [Finset.length_toList, Finset.univ_product_univ, Finset.mem_filter,
+      simp_all only [/-Finset.length_toList, -/Finset.univ_product_univ, Finset.mem_filter,
         Finset.mem_univ, true_and, Fin.val_fin_lt]
     i_pairs_card := by
       have : (@Finset.univ (Fin F.card) _).card = F.card := by
@@ -1899,7 +1898,7 @@ noncomputable def F4 {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [Deci
   F4_rec mo (Ideal.span F : Ideal (MvPolynomial σ K)) (F4_init mo F hF)
 
 /-- Auxiliary induction argument for `F4_full_proc`. -/
-lemma F4_rec_full_proc {σ K : Type*} [hσ : Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+lemma F4_rec_full_proc {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
   (mo : MonomialOrder σ) (I : Ideal (MvPolynomial σ K)) :
     ∀ f4s_lexp : Ideal (MvPolynomial σ K) × ℕ,
     ∀ f4s : F4Struct mo I,
@@ -1921,7 +1920,7 @@ lemma F4_rec_full_proc {σ K : Type*} [hσ : Finite σ] [DecidableEq σ] [Field 
       apply IH (f4s_lex_prod mo I f4s')
       · exact f4s_moni_ipcard_lex_decr mo I f4s full_proc
       · rfl
-  | _ => exact hσ
+  | _ => trivial
 
 /-- The termination condition of `F4`. -/
 lemma F4_full_proc {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]

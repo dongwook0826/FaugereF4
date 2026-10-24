@@ -5,3 +5,8 @@
 /FaugereF4/Test'.lean
 /dataset
 /leancapture
+PaperAudit*
+*.py
+*.log
+*.zip
+/f4-paper-evidence-l128hiw_/*

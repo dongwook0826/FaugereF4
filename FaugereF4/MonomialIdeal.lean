@@ -234,7 +234,7 @@ lemma lm_neg_eq_lm {σ R : Type*} [DecidableEq σ] [CommRing R]
   unfold leading_monomial
   unfold max_monomial
   simp_all only [AddEquiv.toEquiv_eq_coe, Equiv.invFun_as_coe, AddEquiv.coe_toEquiv_symm,
-    MvPolynomial.support_neg]
+    f.support_neg]
 
 /-- Polynomial negation fixes its leading monomial. A nonzero-polynomial variant
 of `lm_neg_eq_lm`. -/
@@ -244,7 +244,7 @@ lemma lm'_neg_eq_lm' {σ R : Type*} [DecidableEq σ] [CommRing R]
   unfold leading_monomial'
   unfold max_monomial'
   simp_all only [AddEquiv.toEquiv_eq_coe, Equiv.invFun_as_coe, AddEquiv.coe_toEquiv_symm,
-    MvPolynomial.support_neg]
+    f.support_neg]
 
 /-- `g - c • f ≠ 0`, given that `f` and `g` are nonzero and the leading monomial of `g`
 precedes that of `f`. A partial step for `lm_sub_smul_eq_lm`. -/
@@ -996,3 +996,51 @@ lemma mem_moni_iff {σ K : Type*} [DecidableEq σ] [Field K]
     rw [term_mem_moni_iff ν M (f.coeff ν) (MvPolynomial.mem_support_iff.mp ν_supp_f)]
     -- This is exactly what we have as the assumption.
     exact M_div_mon_f ν ν_supp_f
+
+/-- For two polynomials `f1` and `f2` whose leading monomials are not greater than
+that of `g`, we have `LM(f1 - f2) ≤ LM(g)`. -/
+lemma lm'_sub_le_of_both_lm'_le {σ R : Type*} [DecidableEq σ] [CommRing R]
+  (mo : MonomialOrder σ) (f1 f2 g : MvPolynomial σ R)
+  (f1_ne_0 : f1 ≠ 0) (f2_ne_0 : f2 ≠ 0) (fsub_ne_0 : f1 - f2 ≠ 0) (g_ne_0 : g ≠ 0)
+  (hf1g :
+    mo.toSyn (leading_monomial' mo f1 f1_ne_0) ≤
+    mo.toSyn (leading_monomial' mo g g_ne_0))
+  (hf2g :
+    mo.toSyn (leading_monomial' mo f2 f2_ne_0) ≤
+    mo.toSyn (leading_monomial' mo g g_ne_0)) :
+    mo.toSyn (leading_monomial' mo (f1 - f2) fsub_ne_0) ≤
+    mo.toSyn (leading_monomial' mo g g_ne_0) := by
+  rw [lm'_neg_eq_lm' mo f2 f2_ne_0] at hf2g
+  have :=
+    lm'_add_le_of_both_lm'_le
+      mo f1 (-f2) g
+        f1_ne_0
+        (neg_ne_zero.mpr f2_ne_0)
+        (by rw [← sub_eq_add_neg f1 f2]; exact fsub_ne_0)
+        g_ne_0
+        hf1g hf2g
+  simp_all only [sub_eq_add_neg f1 f2]
+
+/-- For two polynomials `f1` and `f2` whose leading monomials are less than
+that of `g`, we have `LM(f1 - f2) < LM(g)`. -/
+lemma lm'_sub_lt_of_both_lm'_lt {σ R : Type*} [DecidableEq σ] [CommRing R]
+  (mo : MonomialOrder σ) (f1 f2 g : MvPolynomial σ R)
+  (f1_ne_0 : f1 ≠ 0) (f2_ne_0 : f2 ≠ 0) (fsub_ne_0 : f1 - f2 ≠ 0) (g_ne_0 : g ≠ 0)
+  (hf1g :
+    mo.toSyn (leading_monomial' mo f1 f1_ne_0) <
+    mo.toSyn (leading_monomial' mo g g_ne_0))
+  (hf2g :
+    mo.toSyn (leading_monomial' mo f2 f2_ne_0) <
+    mo.toSyn (leading_monomial' mo g g_ne_0)) :
+    mo.toSyn (leading_monomial' mo (f1 - f2) fsub_ne_0) <
+    mo.toSyn (leading_monomial' mo g g_ne_0) := by
+  rw [lm'_neg_eq_lm' mo f2 f2_ne_0] at hf2g
+  have :=
+    lm'_add_lt_of_both_lm'_lt
+      mo f1 (-f2) g
+        f1_ne_0
+        (neg_ne_zero.mpr f2_ne_0)
+        (by rw [← sub_eq_add_neg f1 f2]; exact fsub_ne_0)
+        g_ne_0
+        hf1g hf2g
+  simp_all only [sub_eq_add_neg f1 f2]

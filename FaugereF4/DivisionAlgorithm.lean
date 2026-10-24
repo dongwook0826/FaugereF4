@@ -1,28 +1,9 @@
 import FaugereF4.MonomialIdeal
 import Mathlib.RingTheory.SimpleRing.Principal
 
-/-
-theorem MonomialOrder.div_set {σ : Type u_1} {m : MonomialOrder σ}
-  {R : Type u_2} [CommRing R] {B : Set (MvPolynomial σ R)}
-  (hB : ∀ b ∈ B, IsUnit (m.leadingCoeff b)) (f : MvPolynomial σ R) :
-  ∃ (g : ↑B →₀ MvPolynomial σ R) (r : MvPolynomial σ R),
-    f = (Finsupp.linearCombination (MvPolynomial σ R) fun (b : ↑B) => ↑b) g + r ∧
-    (∀ (b : ↑B), m.toSyn (m.degree (↑b * g b)) ≤ m.toSyn (m.degree f)) ∧
-    ∀ c ∈ r.support, ∀ b ∈ B, ¬m.degree b ≤ c
+/-!
+# Multivariate polynomial division algorithm
 -/
-
-/-
-Division of a mvpoly by a list of mvpoly's (in an arbitrarily fixed order)
-The struct must hold the dividend f and divisors F = [f0, f1, ..., f(n-1)]
-==> What do we want as data and loop invariants?
-(1) quotients Q = [q0, q1, ..., q(n-1)] & remainder r in that step
-(2) f = ∑ fi * qi + r in each step
-(3) the monomial μ ∈ r.support concerning in that step
-    i.e. we search for the first qi ∈ Q whose leading monomial divides μ
-(4) ∀ i, lm(fi * qi) ≤ lm(f)
--/
-
--- universe u v w
 
 /-- Well-foundedness of the `WithBot`-extension of a monomial order.
 This is used for the termination proof of multivariate polynomial division algorithm. -/
@@ -586,3 +567,54 @@ def remainder_zero {σ K : Type*}
     Prop :=
   ∃ LF : List (MvPolynomial σ K), ∃ hFLF : F = LF.toFinset, ∃ LF_Nodup : LF.Nodup,
     (mvpoly_division mo f LF (by rw [← List.mem_toFinset, ← hFLF]; exact hF) LF_Nodup).r = 0
+
+/-- A stronger version of `remainder_zero`, independent of listing order. -/
+def remainder_zero_ord_indep {σ K : Type*}
+  [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ)
+  (f : MvPolynomial σ K) (F : Finset (MvPolynomial σ K)) (hF : 0 ∉ F) :
+    Prop :=
+  ∀ LF : List (MvPolynomial σ K),
+    (hFLF : F = LF.toFinset) → (LF_Nodup : LF.Nodup) →
+    (mvpoly_division mo f LF (by rw [← List.mem_toFinset, ← hFLF]; exact hF) LF_Nodup).r = 0
+
+/-- Order-independent zero remainder implies zero remainder. -/
+lemma remainder_zero_of_ord_indep {σ K : Type*}
+  [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ)
+  (f : MvPolynomial σ K) (F : Finset (MvPolynomial σ K)) (hF : 0 ∉ F) :
+    remainder_zero_ord_indep mo f F hF → remainder_zero mo f F hF := by
+  unfold remainder_zero_ord_indep remainder_zero
+  intro r0_ord_indep
+  let LF := F.toList
+  have hFLF : F = LF.toFinset := (Finset.toList_toFinset _).symm
+  have LF_Nodup : LF.Nodup := F.nodup_toList
+  exists LF, hFLF, LF_Nodup
+  exact r0_ord_indep LF hFLF LF_Nodup
+
+/-- If a polynomial has zero remainder over division by `G`, then it is in
+the ideal span of `G`. -/
+lemma mem_span_of_remainder_zero {σ K : Type*}
+  [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (f : MvPolynomial σ K)
+  (G : Finset (MvPolynomial σ K)) (zero_not_mem_G : 0 ∉ G) :
+    remainder_zero mo f G zero_not_mem_G → f ∈ Ideal.span G := by
+  intro fGr_zero
+  unfold remainder_zero at fGr_zero
+  rcases fGr_zero with ⟨LG, G_eq_LG, LF_Nodup, fGr_zero⟩
+  have zero_not_mem_LG : 0 ∉ LG := by
+    rw [← List.mem_toFinset, ← G_eq_LG]
+    exact zero_not_mem_G
+  let mpds_fG := mvpoly_division mo f LG zero_not_mem_LG LF_Nodup
+  have fG_repn := mpds_fG.f_eq_FQ_r
+  rw [fGr_zero, mvpoly_division_p_eq_0 mo f LG zero_not_mem_LG] at fG_repn
+  simp only [Fin.getElem_fin, add_zero] at fG_repn
+  rw [fG_repn]
+  apply Ideal.sum_mem
+  intro ⟨i, hi⟩
+  simp only [Finset.mem_univ, forall_const]
+  have LGi_mem_G : {LG[i]} ⊆ SetLike.coe G := by
+    simp only [G_eq_LG, List.coe_toFinset, Set.singleton_subset_iff, Set.mem_setOf_eq,
+      List.getElem_mem]
+  apply Ideal.span_mono LGi_mem_G
+  simp only [Ideal.mem_span_singleton, dvd_mul_right]

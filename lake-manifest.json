@@ -26,7 +26,7 @@
    "name": "mathlib",
    "manifestFile": "lake-manifest.json",
    "inherited": false,
-   "dir": "../.modules/mathlib4",
+   "dir": "../.modules/mathlib4-v4.27.0-rc1",
    "configFile": "lakefile.lean"},
   {"url": "https://github.com/leanprover/lean4-cli",
    "type": "git",

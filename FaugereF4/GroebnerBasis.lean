@@ -130,25 +130,104 @@ theorem mem_ideal_iff_gb_remainder_zero {σ K : Type*}
           (by apply lm'_mem)
       exact key2' ν_div_lmr
   · intro fGr_zero
-    unfold remainder_zero at fGr_zero
-    rcases fGr_zero with ⟨LG, G_eq_LG, LF_Nodup, fGr_zero⟩
-    have zero_not_mem_LG : 0 ∉ LG := by
-      rw [← List.mem_toFinset, ← G_eq_LG]
-      exact zero_not_mem_G
-    let mpds_fG := mvpoly_division mo f LG zero_not_mem_LG LF_Nodup
-    have fG_repn := mpds_fG.f_eq_FQ_r
-    rw [fGr_zero, mvpoly_division_p_eq_0 mo f LG zero_not_mem_LG] at fG_repn
-    simp only [Fin.getElem_fin, add_zero] at fG_repn
+    apply mem_span_of_remainder_zero mo f G zero_not_mem_G at fGr_zero
     apply spanG_le_I
-    rw [fG_repn]
-    apply Ideal.sum_mem
-    intro ⟨i, hi⟩
-    simp only [Finset.mem_univ, forall_const]
-    have LGi_mem_G : {LG[i]} ⊆ SetLike.coe G := by
-      simp only [G_eq_LG, List.coe_toFinset, Set.singleton_subset_iff, Set.mem_setOf_eq,
-        List.getElem_mem]
-    apply Ideal.span_mono LGi_mem_G
-    simp only [Ideal.mem_span_singleton, dvd_mul_right]
+    exact fGr_zero
+
+/-- Suppose that `G` is a Groebner basis of a polynomial ideal `I`. Then a polynomial
+`f` is in `I` if and only if the remainder of division of `f` by `G` is zero. -/
+theorem mem_ideal_iff_gb_remainder_zero_ord_indep {σ K : Type*}
+  [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (f : MvPolynomial σ K)
+  (G : Finset (MvPolynomial σ K)) (I : Ideal (MvPolynomial σ K))
+  (zero_not_mem_G : 0 ∉ G) (G_gb_I : is_groebner mo G I) :
+    f ∈ I ↔ remainder_zero_ord_indep mo f G zero_not_mem_G := by
+  have spanG_le_I : Ideal.span G ≤ I := by
+    rw [← Ideal.span_eq I]
+    apply Ideal.span_mono
+    exact G_gb_I.1
+  constructor
+  · intro f_mem_I
+    rcases G_gb_I with ⟨G_subs_I, initII_eq_initIG⟩
+    cases em (f = 0) with
+    | inl f_eq_0 =>
+      subst f
+      unfold remainder_zero_ord_indep
+      intro _ _ _
+      exact (div_zero_Qr_zero mo _ _ _).2
+    | inr f_ne_0 =>
+      unfold remainder_zero_ord_indep
+      intro LG G_eq_LG LG_Nodup
+      by_contra mpds_on_r_ne_0
+      push_neg at mpds_on_r_ne_0
+      let mpds_on :=
+        mvpoly_division mo f LG
+          (by rw [← List.mem_toFinset, ← G_eq_LG]; exact zero_not_mem_G)
+          LG_Nodup
+      have mpds_on_p_eq_0 : mpds_on.p = 0 := mvpoly_division_p_eq_0 mo f LG _ _
+      have mpds_on_repn := mpds_on.f_eq_FQ_r
+      simp only [Fin.getElem_fin, mpds_on_p_eq_0, add_zero] at mpds_on_repn
+      have mpds_on_r_mem_I : mpds_on.r ∈ I := by
+        rw [add_comm] at mpds_on_repn
+        apply sub_eq_of_eq_add at mpds_on_repn
+        rw [← mpds_on_repn]
+        apply Ideal.sub_mem
+        · exact f_mem_I
+        · apply spanG_le_I
+          apply Ideal.sum_mem
+          intro ⟨i, hi⟩
+          simp only [Finset.mem_univ, forall_const]
+          have LGi_mem_G : {LG[i]} ⊆ SetLike.coe G := by
+            simp only [G_eq_LG, List.coe_toFinset, Set.singleton_subset_iff, Set.mem_setOf_eq,
+              List.getElem_mem]
+          apply Ideal.span_mono LGi_mem_G
+          simp only [Ideal.mem_span_singleton, dvd_mul_right]
+      have mpds_on_lmr_mem_I :
+          ∃ μ ∈ SetLike.coe (leading_monomials_fin mo G),
+            μ ≤ leading_monomial' mo mpds_on.r mpds_on_r_ne_0 := by
+        rw [← @mon_mem_moni_iff σ K, ← initII_eq_initIG]
+        unfold monomial_ideal
+        apply Ideal.subset_span
+        simp only [leading_monomials, Submodule.carrier_eq_coe, Set.sUnion_image, SetLike.mem_coe,
+          Set.mem_image, Set.mem_iUnion, Option.mem_toFinset, Option.mem_def,
+          exists_prop, ne_eq, one_ne_zero, not_false_eq_true, MvPolynomial.monomial_left_inj,
+          exists_eq_right]
+        exists mpds_on.r, mpds_on_r_mem_I
+        rw [lm_coe_lm' mo mpds_on.r mpds_on_r_ne_0, WithBot.some_eq_coe]
+      rcases mpds_on_lmr_mem_I with ⟨ν, ν_mem_lmI, ν_div_lmr⟩
+      simp only [leading_monomials_fin, Finset.coe_biUnion, Finset.mem_coe, Set.mem_iUnion,
+        Option.mem_toFinset, Option.mem_def, exists_prop] at ν_mem_lmI
+      rcases ν_mem_lmI with ⟨g, g_mem_G, lmg_eq_ν⟩
+      rw [
+        lm_coe_lm' mo g (ne_of_mem_of_not_mem g_mem_G zero_not_mem_G),
+        WithBot.some_eq_coe, WithBot.coe_eq_coe
+      ] at lmg_eq_ν
+      subst ν
+      exact
+        mpds_on.r_not_divisible
+          g (by rwa [← List.mem_toFinset, ← G_eq_LG])
+          (leading_monomial' mo mpds_on.r mpds_on_r_ne_0)
+          (by apply lm'_mem)
+          ν_div_lmr
+  · intro fGr_zero
+    apply remainder_zero_of_ord_indep mo f G zero_not_mem_G at fGr_zero
+    apply mem_span_of_remainder_zero mo f G zero_not_mem_G at fGr_zero
+    apply spanG_le_I
+    exact fGr_zero
+
+/-- A Groebner basis of an ideal actually spans the ideal.
+That is, a Groebner basis is indeed a basis. -/
+lemma ideal_of_gb_eq_span {σ K : Type*}
+  [DecidableEq σ] [Field K] (mo : MonomialOrder σ)
+  (G : Finset (MvPolynomial σ K)) (I : Ideal (MvPolynomial σ K))
+  (zero_not_mem_G : 0 ∉ G) (G_gb_I : is_groebner mo G I) :
+    I = Ideal.span G := by
+  classical
+  ext f
+  constructor
+  · rw [mem_ideal_iff_gb_remainder_zero mo f G I zero_not_mem_G G_gb_I]
+    exact mem_span_of_remainder_zero mo f G zero_not_mem_G
+  · apply Ideal.span_le.mpr G_gb_I.1
 
 /-- `G` is a Groebner basis of its ideal span `<G>`, if and only if
 for any nonzero member `f` in `<G>`, the leading term of `f` is in the

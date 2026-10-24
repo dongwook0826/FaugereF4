@@ -9,6 +9,8 @@ import FaugereF4.GaussianElim
 import FaugereF4.GroebnerBasis
 import FaugereF4.FaugereF4
 
+-- old recall lines for elaboration
+/-
 recall is_groebner {σ K : Type*} [DecidableEq σ] [Field K]
   (mo : MonomialOrder σ) (G : Finset (MvPolynomial σ K))
   (I : Ideal (MvPolynomial σ K)) : Prop :=
@@ -24,3 +26,4 @@ recall F4_groebner {σ K : Type*} [Finite σ] [DecidableEq σ] [Field K] [Decida
   (mo : MonomialOrder σ) (F : Finset (MvPolynomial σ K)) (hF : 0 ∉ F) :
     let f4F := F4 mo F hF
     is_groebner mo f4F.G.toFinset (Ideal.span F)
+-/
