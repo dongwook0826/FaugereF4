@@ -1,12 +1,11 @@
 .gitignore
 /.lake
 /labnote
-/FaugereF4/Test.lean
-/FaugereF4/Test'.lean
+/FaugereF4/Test*
 /dataset
 /leancapture
-PaperAudit*
+PaperAudit_info.txt
 *.py
 *.log
 *.zip
-/f4-paper-evidence-l128hiw_/*
+/f4-paper-evidence-*

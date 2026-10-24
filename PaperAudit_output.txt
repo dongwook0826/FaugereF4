@@ -1,0 +1,44 @@
+def is_groebner.{u_1, u_2, u_3} : {σ : Type u_1} →
+  {K : Type u_2} →
+    [DecidableEq σ] →
+      [inst : Field K] → MonomialOrder σ → Finset (MvPolynomial σ K) → Ideal (MvPolynomial σ K) → Prop :=
+fun {σ} {K} [DecidableEq σ] [Field K] mo G I =>
+  ↑G ⊆ I.carrier ∧ monomial_ideal K (leading_monomials mo I.carrier) = monomial_ideal K ↑(leading_monomials_fin mo G)
+F4Struct.{u_1, u_2, u_3} {σ : Type u_1} {K : Type u_2} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (I : Ideal (MvPolynomial σ K)) : Type (max u_1 u_2)
+F4.{u_1, u_2, u_3} {σ : Type u_1} {K : Type u_2} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (F : Finset (MvPolynomial σ K)) (hF : 0 ∉ F) : F4Struct mo (Ideal.span ↑F)
+F4_full_proc.{u_1, u_2, u_3} {σ : Type u_1} {K : Type u_2} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (F : Finset (MvPolynomial σ K)) (hF : 0 ∉ F) : (F4 mo F hF).i_pairs = (F4 mo F hF).i_pairs_proc
+F4_groebner.{u_1, u_2, u_3} {σ : Type u_1} {K : Type u_2} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (F : Finset (MvPolynomial σ K)) (hF : 0 ∉ F) :
+  have f4F := F4 mo F hF;
+  is_groebner mo f4F.G.toFinset (Ideal.span ↑F)
+refined_buchberger.{u_1, u_2, u_3} {σ : Type u_1} {K : Type u_2} [Finite σ] [DecidableEq σ] [Field K] [DecidableEq K]
+  (mo : MonomialOrder σ) (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G) :
+  is_groebner mo G (Ideal.span ↑G) ↔ every_S_poly_red_0 mo G hG
+span_ge_symb_proc_red_0.{u_1, u_2, u_3} {σ : Type u_1} {K : Type u_2} [Finite σ] [DecidableEq σ] [Field K]
+  [DecidableEq K] (mo : MonomialOrder σ) (G : Finset (MvPolynomial σ K)) (hG : 0 ∉ G) (L : Finset (MvPolynomial σ K))
+  (hL : 0 ∉ L) (hGL : ↑L ⊆ {mg | ∃ g ∈ G, ∃ α c, mg = g * (MvPolynomial.monomial α) c}) :
+  have sp_L := symbolic_preprocess mo G hG L hL hGL;
+  have ge_L' := gaussian_elim mo sp_L.H;
+  have N := ge_L'.SO;
+  have N' := {n ∈ N | ∀ l ∈ sp_L.H, ¬leading_monomial mo l ≤ leading_monomial mo n};
+  have V := Submodule.span K ↑sp_L.H;
+  ∀ f ∈ V, ∀ (f_ne_0 : f ≠ 0), reduces_to_zero mo f f_ne_0 (G ∪ N')
+f4s_moni_ipcard_lex_decr.{u_1, u_2, u_3} {σ : Type u_1} {K : Type u_2} [Finite σ] [DecidableEq σ] [Field K]
+  [DecidableEq K] (mo : MonomialOrder σ) (I : Ideal (MvPolynomial σ K)) (f4s : F4Struct mo I)
+  (full_proc : ¬f4s.i_pairs = f4s.i_pairs_proc) :
+  have f4s' := F4_step mo I f4s full_proc;
+  Prod.Lex (fun x1 x2 => x1 > x2) (fun x1 x2 => x1 < x2) (f4s_lex_prod mo I f4s') (f4s_lex_prod mo I f4s)
+'F4' depends on axioms: [propext, Classical.choice, Quot.sound]
+'F4_groebner' depends on axioms: [propext, Classical.choice, Quot.sound]
+'F4_full_proc' depends on axioms: [propext, Classical.choice, Quot.sound]
+'F4_rec_full_proc' depends on axioms: [propext, Classical.choice, Quot.sound]
+'f4s_moni_ipcard_lex_decr' depends on axioms: [propext, Classical.choice, Quot.sound]
+'imv_nat_wf' depends on axioms: [propext, Classical.choice, Quot.sound]
+'span_ge_symb_proc_red_0' depends on axioms: [propext, Classical.choice, Quot.sound]
+'mem_span_ge_exists_same_lm_mem' depends on axioms: [propext, Classical.choice, Quot.sound]
+'gaussian_elim_SI_empty' depends on axioms: [propext, Classical.choice, Quot.sound]
+'symbolic_preprocess_done_mons' depends on axioms: [propext, Classical.choice, Quot.sound]
+'refined_buchberger' depends on axioms: [propext, Classical.choice, Quot.sound]
